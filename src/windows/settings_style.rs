@@ -105,11 +105,16 @@ impl Style {
         color: COLORREF,
         flags: DRAW_TEXT_FORMAT,
     ) {
+        // DrawText may inspect its pointer even at count zero; an empty Vec has no backing buffer.
+        if value.is_empty() || rect.right <= rect.left || rect.bottom <= rect.top {
+            return;
+        }
         let old = SelectObject(dc, font);
         SetBkMode(dc, TRANSPARENT);
         SetTextColor(dc, color);
-        let mut value = value.encode_utf16().collect::<Vec<_>>();
-        DrawTextW(dc, &mut value, &mut rect, flags);
+        let mut value = wide(value);
+        let length = value.len() - 1;
+        DrawTextW(dc, &mut value[..length], &mut rect, flags);
         SelectObject(dc, old);
     }
 }

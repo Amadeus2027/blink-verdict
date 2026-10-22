@@ -39,7 +39,6 @@ function Capture([IntPtr]$Window,[string]$Name) {
  if (-not [NativeDemo]::GetWindowRect($Window,[ref]$rect)) {
   $app.Refresh()
   Get-Content "$Output/native-stderr.log" -ErrorAction SilentlyContinue | Write-Host
-  Get-Content "$Output/native-trace.log" -ErrorAction SilentlyContinue | Write-Host
   Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
@@ -60,8 +59,6 @@ try {
   if ($app.HasExited) { throw ('Native process exited with code {0} (0x{1:X8}).' -f $app.ExitCode,($app.ExitCode -band 0xffffffffL)) }
   throw "Native process $($app.Id) is running but its host window was not found."
  }
- $debugger=Start-Process -FilePath "$env:RUNNER_TEMP/native-trace.exe" -ArgumentList "$($app.Id) `"$Output/native-trace.log`"" -PassThru
- Start-Sleep -Milliseconds 500
  # Same entry point as an explicit tray click; no capture/decision shortcut is sent.
  [void][NativeDemo]::SendMessage($hostWindow,0x8001,[IntPtr]::Zero,[IntPtr]0x202)
  $settings=[NativeDemo]::FindByClass('BlinkVerdict.Settings')
