@@ -15,6 +15,14 @@ scenes = [
     ("05-widget-layout.png", "05 / FIND YOUR PLACE", "Move. Resize. Lock. Stay focused."),
 ]
 font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+def export(command, *, check):
+    print(f"Exporting {command[-1]}", flush=True)
+    # Bound FFmpeg's filter / encoder workers on shared CI runners and fail a stalled export.
+    command = (command[:4] + ["-filter_threads", "1", "-filter_complex_threads", "1"]
+               + command[4:-1] + ["-threads", "2", command[-1]])
+    subprocess.run(command, check=check, timeout=90)
+
+
 segments = []
 for i, (filename, title, subtitle) in enumerate(scenes):
     segment = output / f"scene-{i}.mp4"
@@ -26,7 +34,7 @@ for i, (filename, title, subtitle) in enumerate(scenes):
         f"drawtext=fontfile={font}:text='{subtitle}':fontsize=16:fontcolor=0x9caec3:x=(w-tw)/2:y=76,"
         "fade=t=in:st=0:d=0.22,fade=t=out:st=1.7:d=0.22,format=yuv420p[v]"
     )
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-i", str(source / filename), "-f", "lavfi", "-i", "color=c=0x0a101b:s=1280x900:r=15", "-filter_complex", graph, "-map", "[v]", "-t", "1.95", "-r", "15", "-c:v", "libx264", "-preset", "fast", str(segment)], check=True)
+    export(["ffmpeg", "-v", "error", "-y", "-loop", "1", "-i", str(source / filename), "-f", "lavfi", "-i", "color=c=0x0a101b:s=1280x900:r=15", "-filter_complex", graph, "-map", "[v]", "-t", "1.95", "-r", "15", "-c:v", "libx264", "-preset", "fast", str(segment)], check=True)
     segments.append(segment)
 # A real sequence of native overlay frames is edited as the final scene.
 segment = output / "scene-5.mp4"
@@ -37,13 +45,13 @@ graph = (
     f"drawtext=fontfile={font}:text='Windows native capture / edited presentation':fontsize=14:fontcolor=0x8795a9:x=(w-tw)/2:y=826,"
     "fade=t=in:st=0:d=0.2,fade=t=out:st=1.6:d=0.3,format=yuv420p[v]"
 )
-subprocess.run(["ffmpeg", "-v", "error", "-y", "-framerate", "15", "-i", str(source / "widget-%03d.png"), "-f", "lavfi", "-i", "color=c=0x0a101b:s=1280x900:r=15", "-filter_complex", graph, "-map", "[v]", "-t", "1.95", "-c:v", "libx264", "-preset", "fast", str(segment)], check=True)
+export(["ffmpeg", "-v", "error", "-y", "-framerate", "15", "-i", str(source / "widget-%03d.png"), "-f", "lavfi", "-i", "color=c=0x0a101b:s=1280x900:r=15", "-filter_complex", graph, "-map", "[v]", "-t", "1.95", "-c:v", "libx264", "-preset", "fast", str(segment)], check=True)
 segments.append(segment)
 listing = output / "scenes.txt"
 listing.write_text("\n".join(f"file '{p.resolve()}'" for p in segments))
 video = output / "blink-verdict-showcase.mp4"
-subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(video)], check=True)
-subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-filter_complex", "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle", "-loop", "0", str(output / "showcase.gif")], check=True)
+export(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(video)], check=True)
+export(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-filter_complex", "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle", "-loop", "0", str(output / "showcase.gif")], check=True)
 provenance = json.loads((source / "provenance.json").read_text(encoding="utf-8-sig"))
 provenance["editing"] = "Native window captures; editorial titles, scaling, fades and cuts; 12 fps GIF. Sample YES from the built-in preview; no model request."
 (output / "showcase.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n")

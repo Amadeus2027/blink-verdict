@@ -43,13 +43,14 @@ public static class NativeDemo {
 if ([NativeDemo]::FindByClass('BlinkVerdict.Host') -ne [IntPtr]::Zero) { throw 'Close the existing BlinkVerdict instance before recording.' }
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Output = (Resolve-Path $Output).Path
-$font = Join-Path $env:RUNNER_TEMP 'NotoSansSC.ttf'
-Invoke-WebRequest 'https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf' -OutFile $font
+# Static OpenType family is visible to both GDI settings and DirectWrite overlay.
+$font = Join-Path $env:RUNNER_TEMP 'NotoSansCJKsc-Regular.otf'
+Invoke-WebRequest 'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf' -OutFile $font
 if ([NativeDemo]::AddFontResourceEx($font,0,[IntPtr]::Zero) -eq 0) { throw 'Could not register the demonstration font.' }
 # Isolated synthetic preferences. No credentials, screenshots, provider or model calls.
 $demoData = Join-Path $env:RUNNER_TEMP 'blink-verdict-showcase-data'
 New-Item -ItemType Directory -Force "$demoData/BlinkVerdict" | Out-Null
-@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); theme=@{font='Noto Sans SC'; widget_duration_ms=0; text_color='D3E8FF'; background_color='18212F'} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
+@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); theme=@{font='Noto Sans CJK SC'; widget_duration_ms=0; text_color='D3E8FF'; background_color='18212F'} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
 $env:LOCALAPPDATA = $demoData
 $env:RUST_BACKTRACE = '1'
 $app = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--recordable-preview' -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
@@ -166,7 +167,7 @@ try {
  @{
    kind='Windows native application capture, editorial presentation';
    source_commit=$env:GITHUB_SHA; os=[Environment]::OSVersion.VersionString;
-   font='Noto Sans SC (downloaded for capture only; not shipped with the application)';
+   font='Noto Sans CJK SC (downloaded for capture only; not shipped with the application)';
    capture='Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic solid stage behind the overlay.';
    provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
    checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','native overlay preview visible and nonblank');
