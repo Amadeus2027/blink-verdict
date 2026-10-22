@@ -15,6 +15,8 @@ public static class NativeDemo {
  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr TextMessage(IntPtr hwnd,uint msg,IntPtr wp,string text);
  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr ReadTextMessage(IntPtr hwnd,uint msg,IntPtr count,[Out] StringBuilder value);
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out Rect rect);
+ [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd,uint attribute,out Rect value,int size);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr dc,uint flags);
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int cx,int cy,uint flags);
  [DllImport("gdi32.dll",CharSet=CharSet.Unicode)] public static extern int AddFontResourceEx(string path,uint flags,IntPtr reserved);
@@ -43,6 +45,10 @@ function Capture([IntPtr]$Window,[string]$Name) {
   Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
+ if ($Name -notlike 'widget-*') {
+  $visibleFrame=New-Object NativeDemo+Rect
+  if ([NativeDemo]::DwmGetWindowAttribute($Window,9,[ref]$visibleFrame,16) -eq 0 -and $visibleFrame.Right -gt $visibleFrame.Left) { $rect=$visibleFrame }
+ }
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
  $captured = $false
@@ -54,10 +60,18 @@ function Capture([IntPtr]$Window,[string]$Name) {
  }
  if (-not $captured) {
   $dc = $graphics.GetHdc()
-  try { if (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" } }
+  try {
+   if ($Name -like 'widget-*') { [void][NativeDemo]::SendMessage($Window,0x318,$dc,[IntPtr]4) }
+   elseif (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" }
+  }
   finally { $graphics.ReleaseHdc($dc) }
  }
  $graphics.Dispose()
+ if ($Name -eq 'widget-000') {
+  $bright=$false
+  for ($y=2; $y -lt $bitmap.Height -and -not $bright; $y+=4) { for ($x=2; $x -lt $bitmap.Width; $x+=4) { $pixel=$bitmap.GetPixel($x,$y); if ($pixel.R -gt 100 -or $pixel.G -gt 100 -or $pixel.B -gt 100) { $bright=$true;break } } }
+  if (-not $bright) { throw 'Native overlay capture is blank; refusing to publish a black preview.' }
+ }
  $bitmap.Save((Join-Path $Output "$Name.png"),[System.Drawing.Imaging.ImageFormat]::Png)
  $bitmap.Dispose()
 }
@@ -105,7 +119,14 @@ try {
  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]1,[IntPtr]::Zero)
  Send-Command $settings 201
  $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
- for ($frame=0;$frame -lt 24;$frame++) { Capture $overlay ('widget-{0:D3}' -f $frame); Start-Sleep -Milliseconds 60 }
+ if (-not [NativeDemo]::IsWindowVisible($overlay)) { throw 'Native widget preview was not visible.' }
+ for ($frame=0;$frame -lt 24;$frame++) {
+  if (-not [NativeDemo]::IsWindowVisible($overlay)) {break}
+  $name=('widget-{0:D3}' -f $frame)
+  Capture $overlay $name
+  if (-not [NativeDemo]::IsWindowVisible($overlay)) {Remove-Item "$Output/$name.png";break}
+  Start-Sleep -Milliseconds 50
+ }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
  if ($disk.mode -ne 'Fullscreen') {throw 'Preview unexpectedly persisted the draft.'}
  Capture $settings '06-finish'
@@ -115,6 +136,6 @@ try {
    font='Noto Sans SC (downloaded for capture only; not shipped with the application)';
    capture='Foreground desktop crop where available; Win32 PrintWindow fallback and native overlay frames. Composited blur depends on capture path.';
    provider_requests=0; credentials_used=$false;
-   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key');
+   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','native overlay preview visible and nonblank');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
 } finally { if (-not $app.HasExited) {Stop-Process -Id $app.Id -Force} }

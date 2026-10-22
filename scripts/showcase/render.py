@@ -45,5 +45,5 @@ video = output / "blink-verdict-showcase.mp4"
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", "-movflags", "+faststart", str(video)], check=True)
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-filter_complex", "fps=12,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle", "-loop", "0", str(output / "showcase.gif")], check=True)
 provenance = json.loads((source / "provenance.json").read_text(encoding="utf-8-sig"))
-provenance["editing"] = "Native window captures; editorial titles, scaling, fades and cuts; 12 fps GIF. No model call or mock decision."
+provenance["editing"] = "Native window captures; editorial titles, scaling, fades and cuts; 12 fps GIF. Sample YES from the built-in preview; no model request."
 (output / "showcase.json").write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + "\n")
