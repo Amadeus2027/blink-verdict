@@ -1,3 +1,4 @@
+use super::settings_style::{self as visual, Style};
 use super::*;
 use blink_verdict::config::{Animation, ArtStyle, Provider};
 use windows::Win32::UI::Controls::Dialogs::*;
@@ -6,30 +7,31 @@ use windows::Win32::UI::Controls::*;
 const SAVE: usize = 200;
 const PREVIEW: usize = 201;
 const CANCEL: usize = 202;
-const APPLY_PRESET: usize = 203;
+const APPLY: usize = 203;
 const CLEAR_KEY: usize = 204;
 const PICK_IMAGE: usize = 205;
 const REMOVE_IMAGE: usize = 206;
 const RESET_WIDGET: usize = 207;
+const EDIT_WIDGET: usize = 208;
 const PAGE_BASE: usize = 210;
+
+#[derive(Clone)]
+enum Field {
+    Text(String),
+    Choice(usize),
+    Check(bool),
+}
 
 pub(super) struct Settings {
     draft: Config,
     page: usize,
     controls: Vec<(usize, HWND)>,
-    font: HFONT,
-    brush: HBRUSH,
+    style: Style,
     scale: f32,
     pending_key: Option<String>,
-}
-
-impl Drop for Settings {
-    fn drop(&mut self) {
-        unsafe {
-            let _ = DeleteObject(self.font);
-            let _ = DeleteObject(self.brush);
-        }
-    }
+    fields: std::collections::BTreeMap<usize, Field>,
+    visited: std::collections::BTreeSet<usize>,
+    building: bool,
 }
 
 pub(super) unsafe fn open(app: &mut App) {
@@ -54,36 +56,17 @@ pub(super) unsafe fn open(app: &mut App) {
         SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
     );
     let scale = dpi.min((work.bottom - work.top - 50).max(480) as f32 / 710.0);
-    let face = wide(&app.config.theme.font);
-    let font = CreateFontW(
-        -(16.0 * scale) as i32,
-        0,
-        0,
-        0,
-        FW_NORMAL.0 as i32,
-        0,
-        0,
-        0,
-        DEFAULT_CHARSET.0 as u32,
-        OUT_DEFAULT_PRECIS.0 as u32,
-        CLIP_DEFAULT_PRECIS.0 as u32,
-        CLEARTYPE_QUALITY.0 as u32,
-        DEFAULT_PITCH.0 as u32,
-        PCWSTR(face.as_ptr()),
-    );
-    let background = blink_verdict::config::parse_color(&app.config.theme.background_color)
-        .unwrap_or([17, 19, 24]);
-    let brush = CreateSolidBrush(COLORREF(
-        background[0] as u32 | ((background[1] as u32) << 8) | ((background[2] as u32) << 16),
-    ));
+    let style = Style::new(scale, &app.config.theme.font);
     app.settings_ui = Some(Settings {
         draft: app.config.clone(),
         page: 0,
         controls: Vec::new(),
-        font,
-        brush,
+        style,
         scale,
         pending_key: None,
+        fields: Default::default(),
+        visited: Default::default(),
+        building: false,
     });
     let instance = GetModuleHandleW(None).unwrap_or_default();
     let hwnd = match CreateWindowExW(
@@ -93,7 +76,7 @@ pub(super) unsafe fn open(app: &mut App) {
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
-        (760.0 * scale) as i32,
+        (960.0 * scale) as i32,
         (710.0 * scale) as i32,
         None,
         None,
@@ -109,6 +92,7 @@ pub(super) unsafe fn open(app: &mut App) {
     };
     app.settings = hwnd;
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, app as *mut App as isize);
+    app.settings_ui.as_mut().unwrap().style.attach(hwnd);
     app.settings_ui.as_mut().unwrap().build(hwnd);
     let _ = ShowWindow(hwnd, SW_SHOW);
     let _ = SetForegroundWindow(hwnd);
@@ -127,6 +111,14 @@ impl Settings {
         width: i32,
         height: i32,
     ) -> HWND {
+        let sidebar = (PAGE_BASE..PAGE_BASE + 6).contains(&id);
+        let x = if sidebar { x } else { x + 200 };
+        let button = class.as_wide() == w!("BUTTON").as_wide();
+        let style = if button && id != 329 {
+            WS_TABSTOP | WINDOW_STYLE(BS_OWNERDRAW as u32)
+        } else {
+            style
+        };
         let content = wide(text);
         let hwnd = CreateWindowExW(
             WINDOW_EX_STYLE(0),
@@ -143,7 +135,15 @@ impl Settings {
             None,
         )
         .unwrap_or_default();
-        SendMessageW(hwnd, WM_SETFONT, WPARAM(self.font.0 as usize), LPARAM(1));
+        SendMessageW(
+            hwnd,
+            WM_SETFONT,
+            WPARAM(self.style.font.0 as usize),
+            LPARAM(1),
+        );
+        if id >= 300 {
+            let _ = SetWindowTheme(hwnd, w!(""), w!(""));
+        }
         self.controls.push((id, hwnd));
         hwnd
     }
@@ -172,14 +172,23 @@ impl Settings {
     ) {
         self.label(parent, label, 28, y, 170, 25);
         let height = if multiline > 0 { multiline } else { 28 };
-        let style = WS_BORDER
-            | WS_TABSTOP
+        let style = WS_TABSTOP
             | if multiline > 0 {
                 WS_VSCROLL | WINDOW_STYLE((ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN) as u32)
             } else {
                 WINDOW_STYLE(ES_AUTOHSCROLL as u32)
             };
-        let hwnd = self.control(parent, id, w!("EDIT"), value, style, 200, y, 510, height);
+        let hwnd = self.control(
+            parent,
+            id,
+            w!("EDIT"),
+            value,
+            style,
+            210,
+            y + 5,
+            490,
+            height - 9,
+        );
         SendMessageW(
             hwnd,
             EM_SETLIMITTEXT,
@@ -202,7 +211,9 @@ impl Settings {
             id,
             w!("COMBOBOX"),
             "",
-            WS_TABSTOP | WS_VSCROLL | WINDOW_STYLE(CBS_DROPDOWNLIST as u32),
+            WS_TABSTOP
+                | WS_VSCROLL
+                | WINDOW_STYLE((CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS) as u32),
             200,
             y,
             510,
@@ -221,17 +232,12 @@ impl Settings {
     }
 
     unsafe fn build(&mut self, parent: HWND) {
+        self.building = true;
+        self.visited.insert(self.page);
         for (_, hwnd) in self.controls.drain(..) {
             let _ = DestroyWindow(hwnd);
         }
-        self.label(
-            parent,
-            "B L I N K V E R D I C T   /   一 瞬 决 断",
-            28,
-            18,
-            680,
-            28,
-        );
+
         for (index, title) in ["决策", "模型", "外观", "字效", "浮窗", "关于 / 状态"]
             .iter()
             .enumerate()
@@ -242,13 +248,20 @@ impl Settings {
                 w!("BUTTON"),
                 title,
                 WS_TABSTOP | WINDOW_STYLE(BS_PUSHBUTTON as u32),
-                28 + index as i32 * 115,
-                56,
-                105,
-                32,
+                16,
+                116 + index as i32 * 52,
+                168,
+                42,
             );
         }
-        let c = self.draft.clone();
+        let mut c = self.draft.clone();
+        if let Some(Field::Text(options)) = self.fields.get(&303) {
+            c.options = options
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
         match self.page {
             0 => {
                 self.combo(
@@ -308,6 +321,7 @@ impl Settings {
                     311,
                     "服务预设",
                     &[
+                        "当前配置 / 自定义",
                         "TypeSafe Jev（云端）",
                         "Perplexity Decider（云端）",
                         "Cloudflare Clef（填写 Account ID）",
@@ -328,16 +342,13 @@ impl Settings {
                     0,
                     156,
                 );
-                self.control(
+                self.label(
                     parent,
-                    APPLY_PRESET,
-                    w!("BUTTON"),
-                    "填入选中预设",
-                    WS_TABSTOP,
-                    510,
-                    196,
+                    "选择预设自动填入；先填地址，再输入该服务的密钥。",
                     200,
-                    30,
+                    198,
+                    510,
+                    32,
                 );
                 self.edit(parent, 312, "API 基础地址", &c.endpoint, 242, 0);
                 self.edit(parent, 313, "模型名称", &c.model, 282, 0);
@@ -349,9 +360,16 @@ impl Settings {
                     WPARAM('●' as usize),
                     LPARAM(0),
                 );
-                self.label(
+                self.control(
                     parent,
-                    "留空保留此协议 / 地址已有密钥；密钥存入 Windows 凭据管理器。",
+                    318,
+                    w!("STATIC"),
+                    if self.pending_key.as_deref() == Some("") {
+                        "待删除密钥；应用或确定后生效，取消可放弃。"
+                    } else {
+                        "留空保留当前地址的密钥；切换协议或地址会清空未保存密钥。"
+                    },
+                    WINDOW_STYLE(0),
                     200,
                     356,
                     510,
@@ -428,13 +446,34 @@ impl Settings {
                     ),
                     (
                         327,
-                        "悬浮保留（毫秒）",
-                        c.theme.widget_duration_ms.to_string(),
+                        "结果后隐藏（毫秒）",
+                        c.theme.widget_duration_ms.max(5000).to_string(),
                         406,
                     ),
                 ] {
                     self.edit(parent, id, label, &value, y, 0);
                 }
+                let keep = self.control(
+                    parent,
+                    329,
+                    w!("BUTTON"),
+                    "悬浮常驻 · 不自动隐藏",
+                    WS_TABSTOP | WINDOW_STYLE(BS_AUTOCHECKBOX as u32),
+                    200,
+                    450,
+                    510,
+                    28,
+                );
+                SendMessageW(
+                    keep,
+                    BM_SETCHECK,
+                    WPARAM(if c.theme.widget_duration_ms == 0 {
+                        1
+                    } else {
+                        0
+                    }),
+                    LPARAM(0),
+                );
                 self.combo(
                     parent,
                     328,
@@ -453,9 +492,9 @@ impl Settings {
                         Animation::Pop => 3,
                         Animation::Slide => 4,
                     },
-                    452,
+                    492,
                 );
-                self.label(parent, "悬浮保留设为 0 表示保持可见。位置和大小可在“浮窗”页填写，也可从托盘拖动调整。\r\n两种模式共用字体与配色；字号和时长独立。预览会先保存设置。", 28, 514, 680, 64);
+                self.label(parent, "勾选常驻后，悬浮窗口持续等待快捷键；不在后台截图或请求模型。\r\n预览仅展示当前外观 2 秒，不保存、不截图、不调用模型。", 28, 542, 680, 50);
             }
             3 => {
                 self.combo(
@@ -476,7 +515,7 @@ impl Settings {
                     },
                     118,
                 );
-                self.label(parent, "三组透明字效由图像生成工具制作，适用于 YES / NO（忽略大小写）。\r\n这不是通用字体文件。其他答案继续使用原生字体，或配置自定义 PNG。\r\n字效与文字共用动画；两种显示模式共用风格。", 28, 174, 680, 82);
+                self.label(parent, "为 YES / NO 选择内置风格，或为自己的答案添加透明 PNG。\r\n图片与文字共用当前动画；预览不需要调用模型。", 28, 174, 680, 82);
                 let labels: Vec<&str> = c.options.iter().map(String::as_str).collect();
                 self.combo(parent, 341, "自定义字效对应答案", &labels, 0, 290);
                 let path = c
@@ -531,7 +570,18 @@ impl Settings {
                     250,
                     32,
                 );
-                self.label(parent, "支持负坐标（左侧 / 上方显示器），显示时自动限制在可见工作区。\r\n也可从托盘进入“编辑悬浮窗口”：拖动内部移动，拖动边缘或角落缩放。\r\n再次点击托盘编辑项结束调整；拖放结束自动保存，结束编辑后恢复点击穿透。\r\n日常显示和调整时均不主动激活窗口。Game Bar 的位置 / 大小由其面板调整。", 28, 390, 680, 150);
+                self.control(
+                    parent,
+                    EDIT_WIDGET,
+                    w!("BUTTON"),
+                    "应用并拖动调整",
+                    WS_TABSTOP,
+                    200,
+                    324,
+                    230,
+                    32,
+                );
+                self.label(parent, "支持负坐标（左侧 / 上方显示器），显示时自动限制在可见工作区。\r\n也可从托盘进入“编辑悬浮窗口”：拖动内部移动，拖动边缘或角落缩放。\r\n右键浮窗或点击托盘锁定即可结束；拖放自动保存，结束后恢复点击穿透。\r\n日常显示和调整时均不主动激活窗口。Game Bar 的位置 / 大小由其面板调整。", 28, 390, 680, 150);
             }
             _ => {
                 self.label(parent, "轻量后台 AI 决策助手 · v0.1.0 开发预览\r\n\r\n按键 → 当前屏幕 → 模型判断 → 短暂显示\r\n默认不保存截图或判断历史，不进行后台屏幕监控。\r\n结果仅供参考；模型与服务由用户自行配置。\r\n\r\n独占全屏采用可选 Game Bar 组件，尚未实机验证。\r\n不采用进程注入或图形 Hook。\r\n项目：https://github.com/Amadeus2027/blink-verdict", 28, 118, 680, 240);
@@ -546,40 +596,253 @@ impl Settings {
                 self.label(parent, "留空使用原生覆盖；填写后仅使用 Game Bar，不自动回退或打开面板。\r\n需单独安装、手动打开并固定组件、启用点击穿透。\r\n该组件不接收截图或密钥；安装步骤见 docs/gamebar.md。", 28, 428, 680, 80);
             }
         }
-        self.control(
-            parent,
-            SAVE,
-            w!("BUTTON"),
-            "保存",
-            WS_TABSTOP | WINDOW_STYLE(BS_DEFPUSHBUTTON as u32),
-            270,
-            610,
-            132,
-            34,
-        );
-        self.control(
-            parent,
-            PREVIEW,
-            w!("BUTTON"),
-            "保存并预览",
-            WS_TABSTOP,
-            420,
-            610,
-            140,
-            34,
-        );
-        self.control(
-            parent,
-            CANCEL,
-            w!("BUTTON"),
-            "取消",
-            WS_TABSTOP,
-            578,
-            610,
-            132,
-            34,
-        );
+        for (id, title, x, width) in [
+            (PREVIEW, "预览 · 不保存", 28, 190),
+            (APPLY, "应用", 266, 132),
+            (SAVE, "确定", 422, 132),
+            (CANCEL, "取消", 578, 132),
+        ] {
+            self.control(
+                parent,
+                id,
+                w!("BUTTON"),
+                title,
+                WS_TABSTOP
+                    | if id == SAVE {
+                        WINDOW_STYLE(BS_DEFPUSHBUTTON as u32)
+                    } else {
+                        WINDOW_STYLE(0)
+                    },
+                x,
+                610,
+                width,
+                34,
+            );
+        }
+        for (id, hwnd) in &self.controls {
+            if let Some(field) = self.fields.get(id) {
+                match field {
+                    Field::Text(text) => {
+                        let text = wide(text);
+                        let _ = SetWindowTextW(*hwnd, PCWSTR(text.as_ptr()));
+                    }
+                    Field::Choice(index) => {
+                        SendMessageW(*hwnd, CB_SETCURSEL, WPARAM(*index), LPARAM(0));
+                    }
+                    Field::Check(checked) => {
+                        SendMessageW(*hwnd, BM_SETCHECK, WPARAM(usize::from(*checked)), LPARAM(0));
+                    }
+                }
+            }
+        }
+        if self.page == 1 {
+            let _ = EnableWindow(
+                self.hwnd(317),
+                !index_provider(self.selection(310)).is_decision(),
+            );
+        }
+        if self.page == 2 {
+            let _ = EnableWindow(self.hwnd(327), !self.checked(329));
+        }
+        self.building = false;
+        let selected = self.hwnd(PAGE_BASE + self.page);
+        let _ = SetFocus(selected);
         let _ = InvalidateRect(parent, None, true);
+    }
+
+    unsafe fn rect(&self, x: i32, y: i32, width: i32, height: i32) -> RECT {
+        let p = |n: i32| (n as f32 * self.scale) as i32;
+        RECT {
+            left: p(x),
+            top: p(y),
+            right: p(x + width),
+            bottom: p(y + height),
+        }
+    }
+    unsafe fn paint_background(&self, hwnd: HWND, dc: HDC) {
+        let mut all = RECT::default();
+        let _ = GetClientRect(hwnd, &mut all);
+        if self.style.glass {
+            FillRect(dc, &all, HBRUSH(GetStockObject(BLACK_BRUSH).0));
+        } else {
+            FillRect(dc, &all, self.style.background);
+        }
+        if !self.style.glass {
+            visual::rounded(
+                dc,
+                self.rect(8, 8, 184, 644),
+                visual::SIDEBAR,
+                visual::SIDEBAR,
+                24,
+            );
+        }
+        self.style.text(
+            dc,
+            "BlinkVerdict",
+            self.rect(28, 30, 160, 34),
+            self.style.strong,
+            visual::TEXT,
+            DT_SINGLELINE | DT_VCENTER,
+        );
+        self.style.text(
+            dc,
+            "一瞬决断",
+            self.rect(28, 65, 160, 24),
+            self.style.small,
+            visual::MUTED,
+            DT_SINGLELINE,
+        );
+        self.style.text(
+            dc,
+            "按下快捷键\n让决策浮现",
+            self.rect(28, 564, 155, 70),
+            self.style.small,
+            visual::MUTED,
+            DT_WORDBREAK,
+        );
+        let (title, subtitle) = [
+            (
+                "让判断，简单一点",
+                "设置目标、选项和快捷键，然后继续眼前的事。",
+            ),
+            ("连接你的模型", "云端 API 或本地服务，选择适合你的方式。"),
+            (
+                "只留下需要的表达",
+                "字体、节奏与动画，两种显示方式共享一套风格。",
+            ),
+            ("让答案更有个性", "原生文字，或为每个答案选择一张透明字效。"),
+            ("放在顺手的位置", "精确输入尺寸，或直接拖动调整。"),
+            ("安静地在后台", "只在你需要时，给出一次决策。"),
+        ][self.page];
+        self.style.text(
+            dc,
+            title,
+            self.rect(228, 28, 660, 40),
+            self.style.title,
+            visual::TEXT,
+            DT_SINGLELINE | DT_VCENTER,
+        );
+        self.style.text(
+            dc,
+            subtitle,
+            self.rect(228, 76, 680, 26),
+            self.style.small,
+            visual::MUTED,
+            DT_SINGLELINE,
+        );
+        // Rounded input backplates keep real native edit controls, keyboard navigation and IME.
+        for (id, hwnd) in &self.controls {
+            if matches!(*id, 301..=303 | 312..=314 | 316..=317 | 320..=327 | 330 | 342 | 350..=353)
+            {
+                let mut r = RECT::default();
+                let _ = GetWindowRect(*hwnd, &mut r);
+                let mut origin = POINT {
+                    x: r.left,
+                    y: r.top,
+                };
+                let _ = ScreenToClient(GetParent(*hwnd).unwrap_or_default(), &mut origin);
+                r = RECT {
+                    left: origin.x - (10.0 * self.scale) as i32,
+                    top: origin.y - (5.0 * self.scale) as i32,
+                    right: origin.x + r.right - r.left + (10.0 * self.scale) as i32,
+                    bottom: origin.y + r.bottom - r.top + (4.0 * self.scale) as i32,
+                };
+                visual::rounded(
+                    dc,
+                    r,
+                    visual::FIELD,
+                    COLORREF(0x0044372D),
+                    (16.0 * self.scale) as i32,
+                );
+            }
+        }
+    }
+    unsafe fn draw_item(&self, item: &DRAWITEMSTRUCT) {
+        let id = item.CtlID as usize;
+        let nav = (PAGE_BASE..PAGE_BASE + 6).contains(&id);
+        let selected = nav && id == PAGE_BASE + self.page;
+        let pressed = item.itemState.0 & ODS_SELECTED.0 != 0;
+        let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
+        let primary = id == SAVE;
+        let fill = if primary {
+            COLORREF(0x00E28D40)
+        } else if selected || pressed {
+            COLORREF(0x004C3828)
+        } else {
+            visual::FIELD
+        };
+        visual::rounded(
+            item.hDC,
+            item.rcItem,
+            fill,
+            if selected || primary {
+                visual::ACCENT
+            } else {
+                COLORREF(0x0044372D)
+            },
+            (20.0 * self.scale) as i32,
+        );
+        let mut rect = item.rcItem;
+        if nav {
+            rect.left += (18.0 * self.scale) as i32;
+        }
+        let label = if item.CtlType == ODT_COMBOBOX && item.itemID != u32::MAX {
+            let mut text = vec![
+                0u16;
+                SendMessageW(
+                    item.hwndItem,
+                    CB_GETLBTEXTLEN,
+                    WPARAM(item.itemID as usize),
+                    LPARAM(0)
+                )
+                .0
+                .max(0) as usize
+                    + 1
+            ];
+            SendMessageW(
+                item.hwndItem,
+                CB_GETLBTEXT,
+                WPARAM(item.itemID as usize),
+                LPARAM(text.as_mut_ptr() as isize),
+            );
+            String::from_utf16_lossy(&text[..text.len().saturating_sub(1)])
+        } else {
+            let len = GetWindowTextLengthW(item.hwndItem).max(0) as usize;
+            let mut text = vec![0u16; len + 1];
+            GetWindowTextW(item.hwndItem, &mut text);
+            String::from_utf16_lossy(&text[..len])
+        };
+        if item.CtlType == ODT_COMBOBOX {
+            rect.left += (12.0 * self.scale) as i32;
+        }
+        self.style.text(
+            item.hDC,
+            &label,
+            rect,
+            if nav || primary {
+                self.style.strong
+            } else {
+                self.style.font
+            },
+            if disabled {
+                visual::MUTED
+            } else {
+                visual::TEXT
+            },
+            DT_SINGLELINE
+                | DT_VCENTER
+                | DT_END_ELLIPSIS
+                | if nav || item.CtlType == ODT_COMBOBOX {
+                    DT_LEFT
+                } else {
+                    DT_CENTER
+                },
+        );
+        if item.itemState.0 & ODS_FOCUS.0 != 0 {
+            let mut focus = item.rcItem;
+            let _ = InflateRect(&mut focus, -4, -4);
+            let _ = DrawFocusRect(item.hDC, &focus);
+        }
     }
 
     unsafe fn hwnd(&self, id: usize) -> HWND {
@@ -591,12 +854,48 @@ impl Settings {
     }
     unsafe fn text(&self, id: usize) -> String {
         let hwnd = self.hwnd(id);
+        if hwnd.is_invalid() {
+            return match self.fields.get(&id) {
+                Some(Field::Text(text)) => text.clone(),
+                _ => String::new(),
+            };
+        }
         let count = GetWindowTextLengthW(hwnd).max(0) as usize;
         let mut buffer = vec![0u16; count + 1];
         let len = GetWindowTextW(hwnd, &mut buffer).max(0) as usize;
         String::from_utf16_lossy(&buffer[..len])
     }
+    unsafe fn checked(&self, id: usize) -> bool {
+        let hwnd = self.hwnd(id);
+        if hwnd.is_invalid() {
+            return matches!(self.fields.get(&id), Some(Field::Check(true)));
+        }
+        SendMessageW(hwnd, BM_GETCHECK, WPARAM(0), LPARAM(0)).0 == 1
+    }
+    unsafe fn cache(&mut self) {
+        for (id, _) in &self.controls {
+            if *id < 300 {
+                continue;
+            }
+            let value = if matches!(*id, 300 | 310 | 311 | 315 | 328 | 340 | 341) {
+                Field::Choice(self.selection(*id))
+            } else if *id == 329 {
+                Field::Check(self.checked(*id))
+            } else if *id == 318 || *id == 342 {
+                continue;
+            } else {
+                Field::Text(self.text(*id))
+            };
+            self.fields.insert(*id, value);
+        }
+    }
     unsafe fn selection(&self, id: usize) -> usize {
+        if self.hwnd(id).is_invalid() {
+            return match self.fields.get(&id) {
+                Some(Field::Choice(index)) => *index,
+                _ => 0,
+            };
+        }
         SendMessageW(self.hwnd(id), CB_GETCURSEL, WPARAM(0), LPARAM(0))
             .0
             .max(0) as usize
@@ -608,9 +907,30 @@ impl Settings {
             .map_err(|_| "请在数值字段填写非负整数".into())
     }
 
-    unsafe fn collect(&mut self) -> Result<(), String> {
+    unsafe fn configuration(&mut self, style_only: bool) -> Result<Config, (usize, String)> {
+        self.cache();
         let mut c = self.draft.clone();
-        match self.page {
+        let pages: Vec<_> = self.visited.iter().copied().collect();
+        for page in pages {
+            if style_only && !matches!(page, 2 | 3 | 4) {
+                continue;
+            }
+            self.read_page(page, &mut c)
+                .and_then(|_| c.validate())
+                .map_err(|message| (page, message))?;
+        }
+        if style_only && self.visited.contains(&0) {
+            c.mode = if self.selection(300) == 0 {
+                DisplayMode::Fullscreen
+            } else {
+                DisplayMode::Widget
+            };
+        }
+        Ok(c)
+    }
+
+    unsafe fn read_page(&mut self, page: usize, c: &mut Config) -> Result<(), String> {
+        match page {
             0 => {
                 c.mode = if self.selection(300) == 0 {
                     DisplayMode::Fullscreen
@@ -647,7 +967,15 @@ impl Settings {
                 c.theme.fullscreen_font_size = self.number(324)?;
                 c.theme.widget_font_size = self.number(325)?;
                 c.theme.fullscreen_duration_ms = self.number(326)?;
-                c.theme.widget_duration_ms = self.number(327)?;
+                c.theme.widget_duration_ms = if self.checked(329) {
+                    0
+                } else {
+                    let duration = self.number(327)?;
+                    if duration == 0 {
+                        return Err("请选择“悬浮常驻”，或填写大于 0 的隐藏时长".into());
+                    }
+                    duration
+                };
                 c.theme.animation = match self.selection(328) {
                     0 => Animation::None,
                     2 => Animation::Flash,
@@ -680,13 +1008,15 @@ impl Settings {
                 c.gamebar_package_family = self.text(330).trim().into();
             }
         }
-        c.validate()?;
-        self.draft = c;
         Ok(())
     }
 
     unsafe fn preset(&mut self, parent: HWND) {
-        let index = self.selection(311);
+        let selected = self.selection(311);
+        let Some(index) = selected.checked_sub(1) else {
+            return;
+        };
+        self.cache();
         let (provider, endpoint, model, vision) = match index {
             5 => (
                 Provider::OpenAi,
@@ -764,11 +1094,31 @@ impl Settings {
         self.draft.vision = vision;
         // A newly selected endpoint never inherits a typed key intended for another service.
         self.pending_key = None;
+        self.fields
+            .insert(310, Field::Choice(provider_index(provider)));
+        self.fields.insert(312, Field::Text(endpoint.into()));
+        self.fields.insert(313, Field::Text(model.into()));
+        self.fields.insert(314, Field::Text(String::new()));
+        self.fields
+            .insert(315, Field::Choice(if vision { 0 } else { 1 }));
         self.build(parent);
+        let _ = SetFocus(self.hwnd(if endpoint.starts_with("http://127.0.0.1") {
+            313
+        } else {
+            314
+        }));
     }
 
     unsafe fn image(&mut self, parent: HWND, remove: bool) {
-        let Some(label) = self.draft.options.get(self.selection(341)).cloned() else {
+        let options = if let Some(Field::Text(text)) = self.fields.get(&303) {
+            text.lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        } else {
+            self.draft.options.clone()
+        };
+        let Some(label) = options.get(self.selection(341)).cloned() else {
             return;
         };
         if remove {
@@ -837,20 +1187,29 @@ unsafe fn error(parent: HWND, message: &str) {
     );
 }
 
-unsafe fn save(app: &mut App, preview: bool) {
+unsafe fn form_error(app: &mut App, page: usize, message: &str) {
     let ui = app.settings_ui.as_mut().unwrap();
-    if let Err(message) = ui.collect() {
-        error(app.settings, &message);
-        return;
-    }
-    let config = ui.draft.clone();
+    ui.page = page;
+    ui.build(app.settings);
+    error(app.settings, message);
+}
+
+unsafe fn save(app: &mut App, close: bool) -> bool {
+    let ui = app.settings_ui.as_mut().unwrap();
+    let config = match ui.configuration(false) {
+        Ok(config) => config,
+        Err((page, message)) => {
+            form_error(app, page, &message);
+            return false;
+        }
+    };
     let key = ui.pending_key.clone();
-    if config.hotkey != app.config.hotkey || !app.hotkey_active {
+    if !app.paused && (config.hotkey != app.config.hotkey || !app.hotkey_active) {
         let _ = UnregisterHotKey(app.host, HOTKEY_ID);
         if let Err(message) = app.register_hotkey(&config.hotkey) {
             app.hotkey_active = app.register_hotkey(&app.config.hotkey).is_ok();
-            error(app.settings, &message);
-            return;
+            form_error(app, 0, &message);
+            return false;
         }
     }
     let result = (|| {
@@ -861,17 +1220,87 @@ unsafe fn save(app: &mut App, preview: bool) {
     })();
     if let Err(message) = result {
         let _ = UnregisterHotKey(app.host, HOTKEY_ID);
-        app.hotkey_active = app.register_hotkey(&app.config.hotkey).is_ok();
+        app.hotkey_active = !app.paused && app.register_hotkey(&app.config.hotkey).is_ok();
         error(app.settings, &message);
-        return;
+        return false;
     }
-    app.config = config;
-    app.hotkey_active = true;
-    app.set_status("设置已保存，等待快捷键".into());
+    app.hide();
+    app.config = config.clone();
+    app.hotkey_active = !app.paused;
+    app.set_status(
+        if app.paused {
+            "设置已应用；快捷键仍暂停"
+        } else {
+            "设置已应用，等待快捷键"
+        }
+        .into(),
+    );
+    let ui = app.settings_ui.as_mut().unwrap();
+    ui.draft = config;
+    ui.pending_key = None;
+    ui.fields.insert(314, Field::Text(String::new()));
+    if close {
+        let _ = DestroyWindow(app.settings);
+    } else {
+        ui.build(app.settings);
+    }
+    true
+}
+
+unsafe fn preview(app: &mut App) {
+    let ui = app.settings_ui.as_mut().unwrap();
+    let config = match ui.configuration(true) {
+        Ok(config) => config,
+        Err((page, message)) => {
+            form_error(app, page, &message);
+            return;
+        }
+    };
+    let text = ui
+        .fields
+        .get(&303)
+        .and_then(|value| {
+            if let Field::Text(s) = value {
+                s.lines()
+                    .find(|s| !s.trim().is_empty())
+                    .map(|s| s.trim().to_string())
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(|| config.options[0].clone());
+    // A short native preview never needs model credentials, capture, or a Game Bar connection.
+    app.show(
+        text,
+        capture::foreground_rect(),
+        Some(Duration::from_secs(2)),
+        true,
+        Some(config),
+    );
+}
+
+unsafe fn request_close(app: &mut App) {
+    let ui = app.settings_ui.as_mut().unwrap();
+    let changed = match ui.configuration(false) {
+        Ok(config) => config != app.config || ui.pending_key.is_some(),
+        Err(_) => true,
+    };
+    if changed {
+        match MessageBoxW(
+            app.settings,
+            w!("是否保存本次修改？\n“是”保存并关闭，“否”放弃修改，“取消”继续编辑。"),
+            w!("BlinkVerdict · 未保存的修改"),
+            MB_YESNOCANCEL | MB_ICONQUESTION,
+        ) {
+            IDYES => {
+                save(app, true);
+                return;
+            }
+            IDNO => (),
+            _ => return,
+        }
+    }
     let _ = DestroyWindow(app.settings);
-    if preview {
-        app.command(CMD_PREVIEW);
-    }
 }
 
 pub(super) unsafe extern "system" fn window_proc(
@@ -889,27 +1318,65 @@ pub(super) unsafe extern "system" fn window_proc(
         WM_COMMAND => {
             let id = wparam.0 & 0xffff;
             match id {
-                SAVE => save(app, false),
-                PREVIEW => save(app, true),
-                CANCEL | 2 => {
-                    let _ = DestroyWindow(hwnd);
+                SAVE | 1 => {
+                    save(app, true);
                 }
-                APPLY_PRESET => app.settings_ui.as_mut().unwrap().preset(hwnd),
+                APPLY => {
+                    save(app, false);
+                }
+                PREVIEW => preview(app),
+                CANCEL => request_close(app),
+                2 => {
+                    if app.presentation.is_some() {
+                        app.hide();
+                    } else {
+                        request_close(app);
+                    }
+                }
+                EDIT_WIDGET => {
+                    if save(app, true) {
+                        app.command(CMD_EDIT);
+                    }
+                }
+                311 if wparam.0 >> 16 == CBN_SELCHANGE as usize => {
+                    app.settings_ui.as_mut().unwrap().preset(hwnd)
+                }
                 PICK_IMAGE | REMOVE_IMAGE => app
                     .settings_ui
                     .as_mut()
                     .unwrap()
                     .image(hwnd, id == REMOVE_IMAGE),
-                310 if wparam.0 >> 16 == CBN_SELCHANGE as usize => {
+                310 | 312
+                    if (id == 310 && wparam.0 >> 16 == CBN_SELCHANGE as usize)
+                        || (id == 312 && wparam.0 >> 16 == EN_CHANGE as usize) =>
+                {
+                    let ui = app.settings_ui.as_mut().unwrap();
+                    if !ui.building {
+                        ui.pending_key = None;
+                        ui.fields.insert(314, Field::Text(String::new()));
+                        let _ = SetWindowTextW(ui.hwnd(314), w!(""));
+                        SendMessageW(ui.hwnd(311), CB_SETCURSEL, WPARAM(0), LPARAM(0));
+                        let _ = EnableWindow(
+                            ui.hwnd(317),
+                            !index_provider(ui.selection(310)).is_decision(),
+                        );
+                    }
+                }
+                329 => {
                     let ui = app.settings_ui.as_ref().unwrap();
-                    let _ = EnableWindow(
-                        ui.hwnd(317),
-                        !index_provider(ui.selection(310)).is_decision(),
-                    );
+                    let _ = EnableWindow(ui.hwnd(327), !ui.checked(329));
                 }
                 341 if wparam.0 >> 16 == CBN_SELCHANGE as usize => {
                     let ui = app.settings_ui.as_ref().unwrap();
-                    let label = ui.draft.options.get(ui.selection(341));
+                    let options: Vec<_> = if let Some(Field::Text(text)) = ui.fields.get(&303) {
+                        text.lines()
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect()
+                    } else {
+                        ui.draft.options.clone()
+                    };
+                    let label = options.get(ui.selection(341));
                     let path = label
                         .and_then(|v| ui.draft.option_images.get(v))
                         .map(String::as_str)
@@ -919,64 +1386,99 @@ pub(super) unsafe extern "system" fn window_proc(
                 }
                 RESET_WIDGET => {
                     let ui = app.settings_ui.as_mut().unwrap();
+                    ui.cache();
                     let defaults = Config::default();
                     ui.draft.widget_x = defaults.widget_x;
                     ui.draft.widget_y = defaults.widget_y;
                     ui.draft.widget_width = defaults.widget_width;
                     ui.draft.widget_height = defaults.widget_height;
+                    for (id, value) in [
+                        (350, defaults.widget_x),
+                        (351, defaults.widget_y),
+                        (352, defaults.widget_width),
+                        (353, defaults.widget_height),
+                    ] {
+                        ui.fields.insert(id, Field::Text(value.to_string()));
+                    }
                     ui.build(hwnd);
                 }
                 CLEAR_KEY => {
                     let ui = app.settings_ui.as_mut().unwrap();
                     ui.pending_key = Some(String::new());
                     let _ = SetWindowTextW(ui.hwnd(314), w!(""));
-                    error(hwnd, "保存后删除当前地址的密钥；取消则不删除。");
+                    ui.fields.insert(314, Field::Text(String::new()));
+                    let _ = SetWindowTextW(
+                        ui.hwnd(318),
+                        w!("待删除密钥；应用或确定后生效，取消可放弃。"),
+                    );
                 }
                 value if (PAGE_BASE..PAGE_BASE + 6).contains(&value) => {
                     let ui = app.settings_ui.as_mut().unwrap();
-                    match ui.collect() {
-                        Ok(()) => {
-                            ui.page = value - PAGE_BASE;
-                            ui.build(hwnd);
-                        }
-                        Err(message) => error(hwnd, &message),
-                    }
+                    ui.cache();
+                    ui.page = value - PAGE_BASE;
+                    ui.build(hwnd);
                 }
                 _ => (),
             }
             LRESULT(0)
         }
-        WM_CTLCOLORSTATIC | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX => {
+        WM_MEASUREITEM => {
+            let item = &mut *(lparam.0 as *mut MEASUREITEMSTRUCT);
+            if let Some(ui) = &app.settings_ui {
+                item.itemHeight = (28.0 * ui.scale) as u32;
+            }
+            LRESULT(1)
+        }
+        WM_DRAWITEM => {
+            let item = &*(lparam.0 as *const DRAWITEMSTRUCT);
+            if let Some(ui) = &app.settings_ui {
+                ui.draw_item(item);
+            }
+            LRESULT(1)
+        }
+        WM_CTLCOLORSTATIC | WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX | WM_CTLCOLORBTN => {
             if let Some(ui) = &app.settings_ui {
                 let dc = HDC(wparam.0 as *mut _);
-                SetTextColor(dc, COLORREF(0x00E6E3E2));
-                let [r, g, b] =
-                    blink_verdict::config::parse_color(&app.config.theme.background_color)
-                        .unwrap_or([17, 19, 24]);
+                SetTextColor(
+                    dc,
+                    if message == WM_CTLCOLORSTATIC {
+                        visual::MUTED
+                    } else {
+                        visual::TEXT
+                    },
+                );
                 SetBkColor(
                     dc,
-                    COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16)),
+                    if matches!(message, WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX) {
+                        visual::FIELD
+                    } else {
+                        visual::BACKGROUND
+                    },
                 );
-                return LRESULT(ui.brush.0 as isize);
+                return LRESULT(if matches!(message, WM_CTLCOLOREDIT | WM_CTLCOLORLISTBOX) {
+                    ui.style.field.0
+                } else {
+                    ui.style.background.0
+                } as isize);
             }
             LRESULT(0)
         }
         WM_ERASEBKGND => {
             if let Some(ui) = &app.settings_ui {
-                let mut rect = RECT::default();
-                let _ = GetClientRect(hwnd, &mut rect);
-                FillRect(HDC(wparam.0 as *mut _), &rect, ui.brush);
+                ui.paint_background(hwnd, HDC(wparam.0 as *mut _));
             }
             LRESULT(1)
         }
         WM_CLOSE => {
-            let _ = DestroyWindow(hwnd);
+            request_close(app);
             LRESULT(0)
         }
         WM_NCDESTROY => {
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
             app.settings = HWND::default();
             app.settings_ui = None;
+            app.hide();
+            app.restore_widget();
             DefWindowProcW(hwnd, message, wparam, lparam)
         }
         _ => DefWindowProcW(hwnd, message, wparam, lparam),

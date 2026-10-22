@@ -73,7 +73,7 @@ impl Provider {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Theme {
     pub art_style: ArtStyle,
@@ -100,13 +100,13 @@ impl Default for Theme {
             fullscreen_font_size: 150,
             widget_font_size: 32,
             fullscreen_duration_ms: 1500,
-            widget_duration_ms: 5000,
+            widget_duration_ms: 0,
             animation: Animation::Fade,
         }
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub mode: DisplayMode,
@@ -232,6 +232,7 @@ mod tests {
     fn settings_roundtrip_and_reject_invalid_choices() {
         let mut c = Config::default();
         assert!(c.validate().is_ok());
+        assert_eq!(c.theme.widget_duration_ms, 0);
         c.options = vec!["进攻".into(), "撤退".into(), "等待".into()];
         c.widget_x = -1920;
         c.widget_width = 600;

@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
@@ -65,3 +66,60 @@ jobs:
           name: blink-verdict-gamebar-unsigned-preview
           path: gamebar/AppPackages/
           if-no-files-found: error
+
+  showcase-capture:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --locked --lib
+      - run: cargo build --locked --release
+      - name: Record actual native settings and overlay
+        shell: pwsh
+        run: ./scripts/showcase/capture.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-ui-frames
+          path: showcase-frames/
+          if-no-files-found: warn
+  showcase-edit:
+    needs: showcase-capture
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-ui-frames
+          path: showcase-frames
+      - name: Edit footage and export GIF
+        run: |
+          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y ffmpeg)
+          python3 scripts/showcase/render.py showcase-frames showcase-edit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-ui-showcase-video
+          path: |
+            showcase-edit/blink-verdict-showcase.mp4
+            showcase-edit/showcase.gif
+            showcase-edit/showcase.json
+      - name: Keep native captures and GIF on this branch
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          mkdir -p docs/assets/showcase
+          cp showcase-edit/showcase.gif docs/assets/showcase.gif
+          cp showcase-edit/showcase.json docs/assets/showcase/provenance.json
+          cp showcase-frames/0*.png docs/assets/showcase/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/assets/showcase.gif docs/assets/showcase/
+          git diff --cached --quiet || git commit -m "docs: record Windows native interface showcase"
+          git push origin "HEAD:$BRANCH"

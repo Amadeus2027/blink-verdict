@@ -148,6 +148,20 @@ impl Renderer {
         })
     }
 
+    pub unsafe fn print_to(&self, dc: HDC) {
+        let _ = BitBlt(
+            dc,
+            0,
+            0,
+            self.surface.size.cx,
+            self.surface.size.cy,
+            self.surface.dc,
+            0,
+            0,
+            SRCCOPY,
+        );
+    }
+
     pub unsafe fn paint(
         &self,
         config: &Config,
@@ -157,12 +171,45 @@ impl Renderer {
     ) -> Result<()> {
         let size = self.target.GetSize();
         self.target.BeginDraw();
-        self.target
-            .Clear(Some(&color(&config.theme.background_color)));
+        let widget = config.mode == DisplayMode::Widget;
+        if widget {
+            self.target.Clear(Some(&D2D1_COLOR_F {
+                r: 0.0,
+                g: 0.0,
+                b: 0.0,
+                a: 0.0,
+            }));
+            let mut tint = color(&config.theme.background_color);
+            tint.a = 0.92;
+            let background = self.target.CreateSolidColorBrush(&tint, None)?;
+            let border = self.target.CreateSolidColorBrush(
+                &D2D1_COLOR_F {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.16,
+                },
+                None,
+            )?;
+            let shape = D2D1_ROUNDED_RECT {
+                rect: D2D_RECT_F {
+                    left: 0.5,
+                    top: 0.5,
+                    right: size.width - 0.5,
+                    bottom: size.height - 0.5,
+                },
+                radiusX: 16.0,
+                radiusY: 16.0,
+            };
+            self.target.FillRoundedRectangle(&shape, &background);
+            self.target.DrawRoundedRectangle(&shape, &border, 1.0, None);
+        } else {
+            self.target
+                .Clear(Some(&color(&config.theme.background_color)));
+        }
         let brush = self
             .target
             .CreateSolidColorBrush(&color(&config.theme.text_color), None)?;
-        let widget = config.mode == DisplayMode::Widget;
         let margin = if widget { 18.0 } else { size.width * 0.06 };
         let top = if widget { 34.0 } else { margin };
         let bottom = if widget {
@@ -245,7 +292,7 @@ impl Renderer {
                 &muted,
             )?;
             let footer = if editing {
-                "编辑中 · 拖动内部 / 边缘缩放 · 托盘锁定"
+                "编辑中 · 拖动 / 缩放 · 右键完成"
             } else {
                 &config.hotkey
             };
