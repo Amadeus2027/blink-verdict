@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 public static class NativeDemo {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
+ public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd,int id);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr TextMessage(IntPtr hwnd,uint msg,IntPtr wp,string text);
@@ -45,11 +46,15 @@ function Capture([IntPtr]$Window,[string]$Name) {
 }
 try {
  $hostWindow = [IntPtr]::Zero
- for ($i=0;$i -lt 100;$i++) { $hostWindow=[NativeDemo]::FindWindow('BlinkVerdict.Host',$null); if ($hostWindow -ne [IntPtr]::Zero) {break}; Start-Sleep -Milliseconds 100 }
- if ($hostWindow -eq [IntPtr]::Zero) { throw 'Native host did not start.' }
+ for ($i=0;$i -lt 100;$i++) { $hostWindow=[NativeDemo]::FindByClass('BlinkVerdict.Host'); if ($hostWindow -ne [IntPtr]::Zero) {break}; Start-Sleep -Milliseconds 100 }
+ if ($hostWindow -eq [IntPtr]::Zero) {
+  $app.Refresh()
+  if ($app.HasExited) { throw ('Native process exited with code {0} (0x{1:X8}).' -f $app.ExitCode,($app.ExitCode -band 0xffffffffL)) }
+  throw "Native process $($app.Id) is running but its host window was not found."
+ }
  # Same entry point as an explicit tray click; no capture/decision shortcut is sent.
  [void][NativeDemo]::SendMessage($hostWindow,0x8001,[IntPtr]::Zero,[IntPtr]0x202)
- $settings=[NativeDemo]::FindWindow('BlinkVerdict.Settings',$null)
+ $settings=[NativeDemo]::FindByClass('BlinkVerdict.Settings')
  if ($settings -eq [IntPtr]::Zero) {throw 'Settings window did not open.'}
  [void][NativeDemo]::SetWindowPos($settings,[IntPtr]::Zero,40,40,0,0,0x15)
  Start-Sleep -Milliseconds 400
@@ -77,7 +82,7 @@ try {
  Send-Command $settings 210
  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]1,[IntPtr]::Zero)
  Send-Command $settings 201
- $overlay=[NativeDemo]::FindWindow('BlinkVerdict.Overlay',$null)
+ $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
  for ($frame=0;$frame -lt 24;$frame++) { Capture $overlay ('widget-{0:D3}' -f $frame); Start-Sleep -Milliseconds 60 }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
  if ($disk.mode -ne 'Fullscreen') {throw 'Preview unexpectedly persisted the draft.'}
