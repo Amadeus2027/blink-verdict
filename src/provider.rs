@@ -12,14 +12,17 @@ pub enum Observation {
     Text(String),
 }
 
-pub fn validate_endpoint(endpoint: &str) -> Result<(), String> {
-    let url = Url::parse(endpoint.trim()).map_err(|_| "API 地址无效".to_string())?;
+fn is_loopback(url: &Url) -> bool {
     let host = url.host_str().unwrap_or("").trim_matches(['[', ']']);
-    let loopback = host == "localhost"
+    host == "localhost"
         || host
             .parse::<std::net::IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback());
-    if url.scheme() != "https" && !(url.scheme() == "http" && loopback) {
+            .is_ok_and(|ip| ip.is_loopback())
+}
+
+pub fn validate_endpoint(endpoint: &str) -> Result<(), String> {
+    let url = Url::parse(endpoint.trim()).map_err(|_| "API 地址无效".to_string())?;
+    if url.scheme() != "https" && !(url.scheme() == "http" && is_loopback(&url)) {
         return Err("API 地址须使用 HTTPS；仅本机回环地址可使用 HTTP".into());
     }
     if !url.username().is_empty()
@@ -149,11 +152,17 @@ pub fn decide(config: &Config, key: &str, observation: Observation) -> Result<Ve
             return Err("OCR 未识别到文字，请改用视觉模型".into());
         }
     }
-    let client = Client::builder()
+    let mut builder = Client::builder()
         .timeout(Duration::from_secs(config.timeout_seconds.into()))
         .connect_timeout(Duration::from_secs(8))
         // Do not forward screenshots or credentials to an unexpected redirect target.
-        .redirect(reqwest::redirect::Policy::none())
+        .redirect(reqwest::redirect::Policy::none());
+    // A loopback model must stay on this machine even if Windows has a proxy configured.
+    if is_loopback(&Url::parse(config.endpoint.trim()).map_err(|_| "API 地址无效".to_string())?)
+    {
+        builder = builder.no_proxy();
+    }
+    let client = builder
         .build()
         .map_err(|_| "无法创建网络客户端".to_string())?;
     let (url, body) = request_parts(config, &observation);
