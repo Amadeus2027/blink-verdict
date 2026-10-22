@@ -34,7 +34,10 @@ function Send-Command([IntPtr]$Window,[int]$Id) { [void][NativeDemo]::SendMessag
 function Set-Text([IntPtr]$Window,[int]$Id,[string]$Text) { [void][NativeDemo]::TextMessage([NativeDemo]::GetDlgItem($Window,$Id),0xC,[IntPtr]::Zero,$Text) }
 function Capture([IntPtr]$Window,[string]$Name) {
  $rect = New-Object NativeDemo+Rect
- if (-not [NativeDemo]::GetWindowRect($Window,[ref]$rect)) { throw "No window rectangle for $Name" }
+ if (-not [NativeDemo]::GetWindowRect($Window,[ref]$rect)) {
+  $app.Refresh()
+  throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
+ }
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
  $dc = $graphics.GetHdc()
@@ -64,6 +67,11 @@ try {
  Send-Command $settings 211
  Start-Sleep -Milliseconds 180
  Capture $settings '02-models'
+ Set-Text $settings 314 'showcase-not-a-real-api-key'
+ Set-Text $settings 312 'http://127.0.0.1:8000/v1'
+ $keyValue=New-Object System.Text.StringBuilder 100
+ [void][NativeDemo]::GetWindowText([NativeDemo]::GetDlgItem($settings,314),$keyValue,100)
+ if ($keyValue.Length -ne 0) {throw 'Changing endpoint retained an unsaved key.'}
  Send-Command $settings 210
  $value=New-Object System.Text.StringBuilder 100
  [void][NativeDemo]::GetWindowText([NativeDemo]::GetDlgItem($settings,301),$value,100)
@@ -93,6 +101,6 @@ try {
    font='Noto Sans SC (downloaded for capture only; not shipped with the application)';
    capture='Win32 PrintWindow; composited desktop blur is not guaranteed in offscreen capture';
    provider_requests=0; credentials_used=$false;
-   checks=@('unfinished field survives page navigation','preview does not save draft mode');
+   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
 } finally { if (-not $app.HasExited) {Stop-Process -Id $app.Id -Force} }

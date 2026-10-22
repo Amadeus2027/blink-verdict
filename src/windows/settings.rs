@@ -951,9 +951,13 @@ impl Settings {
                 c.endpoint = self.text(312).trim().into();
                 c.model = self.text(313).trim().into();
                 let key = self.text(314);
-                if !key.is_empty() {
-                    self.pending_key = Some(key.trim().into());
-                }
+                self.pending_key = if !key.trim().is_empty() {
+                    Some(key.trim().into())
+                } else if self.pending_key.as_deref() == Some("") {
+                    Some(String::new()) // Only the explicit delete action means deletion.
+                } else {
+                    None
+                };
                 c.vision = self.selection(315) == 0;
                 c.timeout_seconds = self.number(316)?;
                 c.output_tokens = self.number(317)?;
@@ -1317,6 +1321,12 @@ pub(super) unsafe extern "system" fn window_proc(
     match message {
         WM_COMMAND => {
             let id = wparam.0 & 0xffff;
+            // Owner-drawn buttons also notify focus changes. Only a click is an action.
+            if app.settings_ui.as_ref().is_some_and(|ui| ui.building)
+                || (id < 300 && wparam.0 >> 16 != BN_CLICKED as usize)
+            {
+                return LRESULT(0);
+            }
             match id {
                 SAVE | 1 => {
                     save(app, true);
@@ -1355,6 +1365,10 @@ pub(super) unsafe extern "system" fn window_proc(
                         ui.pending_key = None;
                         ui.fields.insert(314, Field::Text(String::new()));
                         let _ = SetWindowTextW(ui.hwnd(314), w!(""));
+                        let _ = SetWindowTextW(
+                            ui.hwnd(318),
+                            w!("留空保留当前地址的密钥；切换协议或地址会清空未保存密钥。"),
+                        );
                         SendMessageW(ui.hwnd(311), CB_SETCURSEL, WPARAM(0), LPARAM(0));
                         let _ = EnableWindow(
                             ui.hwnd(317),
