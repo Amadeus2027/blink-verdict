@@ -1492,11 +1492,16 @@ pub(super) unsafe extern "system" fn window_proc(
             }
             LRESULT(0)
         }
-        WM_ERASEBKGND => {
+        WM_ERASEBKGND => LRESULT(1),
+        WM_PAINT => {
+            // Paint in a client-origin DC; erase notifications may carry a window-origin DC.
+            let mut paint = PAINTSTRUCT::default();
+            let dc = BeginPaint(hwnd, &mut paint);
             if let Some(ui) = &app.settings_ui {
-                ui.paint_background(hwnd, HDC(wparam.0 as *mut _));
+                ui.paint_background(hwnd, dc);
             }
-            LRESULT(1)
+            let _ = EndPaint(hwnd, &paint);
+            LRESULT(0)
         }
         WM_CLOSE => {
             request_close(app);

@@ -9,6 +9,7 @@ public static class NativeDemo {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
  public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd,out uint processId);
  [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd,IntPtr dc);
  [DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr target,int x,int y,int width,int height,IntPtr source,int sx,int sy,uint operation);
@@ -38,6 +39,8 @@ public static class NativeDemo {
  [DllImport("gdi32.dll",CharSet=CharSet.Unicode)] public static extern int AddFontResourceEx(string path,uint flags,IntPtr reserved);
 }
 '@
+# Never attach this recorder to an existing user's resident instance.
+if ([NativeDemo]::FindByClass('BlinkVerdict.Host') -ne [IntPtr]::Zero) { throw 'Close the existing BlinkVerdict instance before recording.' }
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Output = (Resolve-Path $Output).Path
 $font = Join-Path $env:RUNNER_TEMP 'NotoSansSC.ttf'
@@ -99,6 +102,9 @@ try {
   if ($app.HasExited) { throw ('Native process exited with code {0} (0x{1:X8}).' -f $app.ExitCode,($app.ExitCode -band 0xffffffffL)) }
   throw "Native process $($app.Id) is running but its host window was not found."
  }
+ [uint32]$owner=0
+ [void][NativeDemo]::GetWindowThreadProcessId($hostWindow,[ref]$owner)
+ if ($owner -ne $app.Id) {throw 'Host window belongs to a different process; recording stopped.'}
  # Same entry point as an explicit tray click; no capture/decision shortcut is sent.
  [void][NativeDemo]::SendMessage($hostWindow,0x8001,[IntPtr]::Zero,[IntPtr]0x202)
  $settings=[NativeDemo]::FindByClass('BlinkVerdict.Settings')
