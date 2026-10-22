@@ -41,6 +41,7 @@ pub(super) unsafe fn open(app: &mut App) {
         let _ = SetForegroundWindow(app.settings);
         return;
     }
+    app.clear_gamebar();
     app.lock_widget();
     app.hide();
     let dpi = GetDpiForSystem() as f32 / 96.0;

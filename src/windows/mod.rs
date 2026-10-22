@@ -292,6 +292,7 @@ impl App {
                     self.set_status("判断中，完成后可切换模式".into());
                     return;
                 }
+                self.clear_gamebar();
                 self.lock_widget();
                 self.hide();
                 self.config.mode = if id == CMD_FULLSCREEN {
@@ -315,6 +316,7 @@ impl App {
                     self.lock_widget();
                     self.hide();
                 } else {
+                    self.clear_gamebar();
                     self.hide();
                     self.config.mode = DisplayMode::Widget;
                     self.editing = true;
@@ -357,7 +359,10 @@ impl App {
                     MB_OK,
                 );
             }
-            CMD_EXIT => PostQuitMessage(0),
+            CMD_EXIT => {
+                self.clear_gamebar();
+                PostQuitMessage(0);
+            }
             _ => (),
         }
     }
@@ -374,6 +379,24 @@ impl App {
                 | WS_EX_LAYERED)
                 .0 as isize,
         );
+    }
+
+    /// Only explicit tray/settings actions call this. Never block the decision hotkey UI.
+    unsafe fn clear_gamebar(&self) {
+        if self.config.gamebar_package_family.is_empty() {
+            return;
+        }
+        let config = self.config.clone();
+        let _ = std::thread::spawn(move || {
+            let initialized = RoInitialize(RO_INIT_MULTITHREADED).is_ok();
+            if let Ok(bridge) = gamebar::Bridge::connect(&config.gamebar_package_family) {
+                let _ = bridge.send(&config, "hide", "", RECT::default());
+            }
+            if initialized {
+                RoUninitialize();
+            }
+        })
+        .join();
     }
 
     unsafe fn hide(&mut self) {
@@ -442,6 +465,15 @@ impl App {
             height,
             SWP_NOACTIVATE,
         );
+        // Decode and create the surface before starting the configured result lifetime.
+        match render::Renderer::new(self.overlay, &self.config, &self.text) {
+            Ok(renderer) => self.renderer = Some(renderer),
+            Err(_) => {
+                self.hide();
+                self.set_status("图形显示初始化失败".into());
+                return;
+            }
+        }
         self.shown_at = Instant::now();
         self.expires_at = duration.map(|d| self.shown_at + d);
         self.visible = true;
