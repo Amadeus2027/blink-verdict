@@ -7,15 +7,73 @@ use windows::{
             Direct2D::{Common::*, *},
             DirectWrite::*,
             Dxgi::Common::*,
+            Gdi::*,
         },
-        UI::WindowsAndMessaging::GetClientRect,
+        UI::WindowsAndMessaging::{GetClientRect, UpdateLayeredWindow, ULW_ALPHA},
     },
 };
 
 pub struct Renderer {
-    target: ID2D1HwndRenderTarget,
+    target: ID2D1DCRenderTarget,
     write: IDWriteFactory,
     art: Option<(ID2D1Bitmap, D2D_RECT_F)>,
+    hwnd: HWND,
+    surface: Surface,
+}
+
+struct Surface {
+    dc: HDC,
+    bitmap: HBITMAP,
+    old: HGDIOBJ,
+    size: SIZE,
+}
+impl Drop for Surface {
+    fn drop(&mut self) {
+        unsafe {
+            SelectObject(self.dc, self.old);
+            let _ = DeleteObject(self.bitmap);
+            let _ = DeleteDC(self.dc);
+        }
+    }
+}
+
+impl Surface {
+    unsafe fn new(width: i32, height: i32) -> Result<Self> {
+        let dc = CreateCompatibleDC(None);
+        if dc.is_invalid() {
+            return Err(windows::core::Error::from_win32());
+        }
+        let info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER {
+                biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
+                biWidth: width,
+                biHeight: -height,
+                biPlanes: 1,
+                biBitCount: 32,
+                biCompression: BI_RGB.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let mut bits = std::ptr::null_mut();
+        let bitmap = match CreateDIBSection(dc, &info, DIB_RGB_COLORS, &mut bits, None, 0) {
+            Ok(bitmap) => bitmap,
+            Err(error) => {
+                let _ = DeleteDC(dc);
+                return Err(error);
+            }
+        };
+        let old = SelectObject(dc, bitmap);
+        Ok(Self {
+            dc,
+            bitmap,
+            old,
+            size: SIZE {
+                cx: width,
+                cy: height,
+            },
+        })
+    }
 }
 
 fn color(value: &str) -> D2D1_COLOR_F {
@@ -37,24 +95,18 @@ impl Renderer {
             r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
             pixelFormat: D2D1_PIXEL_FORMAT {
                 format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                alphaMode: D2D1_ALPHA_MODE_IGNORE,
+                alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
             },
             // Explicit pixel units keep rendering consistent with per-monitor-aware geometry.
             dpiX: 96.0,
             dpiY: 96.0,
             ..Default::default()
         };
-        let target = factory.CreateHwndRenderTarget(
-            &properties,
-            &D2D1_HWND_RENDER_TARGET_PROPERTIES {
-                hwnd,
-                pixelSize: D2D_SIZE_U {
-                    width: (rect.right - rect.left).max(1) as u32,
-                    height: (rect.bottom - rect.top).max(1) as u32,
-                },
-                presentOptions: D2D1_PRESENT_OPTIONS_NONE,
-            },
-        )?;
+        // Layered windows use the supported DC/DIB + UpdateLayeredWindow path.
+        let surface = Surface::new(rect.right.max(1), rect.bottom.max(1))?;
+        let target = factory.CreateDCRenderTarget(&properties)?;
+        target.BindDC(surface.dc, &rect)?;
+        target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
         let write = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
         let art = super::art::load(config, text).and_then(|image| {
             target
@@ -87,7 +139,13 @@ impl Renderer {
                     )
                 })
         });
-        Ok(Self { target, write, art })
+        Ok(Self {
+            target,
+            write,
+            art,
+            hwnd,
+            surface,
+        })
     }
 
     pub unsafe fn paint(
@@ -204,7 +262,25 @@ impl Renderer {
                 &muted,
             )?;
         }
-        self.target.EndDraw(None, None)
+        self.target.EndDraw(None, None)?;
+        let blend = BLENDFUNCTION {
+            BlendOp: AC_SRC_OVER as u8,
+            BlendFlags: 0,
+            SourceConstantAlpha: (motion.opacity * config.theme.opacity as f32).clamp(0.0, 255.0)
+                as u8,
+            AlphaFormat: AC_SRC_ALPHA as u8,
+        };
+        UpdateLayeredWindow(
+            self.hwnd,
+            None,
+            None,
+            Some(&self.surface.size),
+            self.surface.dc,
+            Some(&POINT { x: 0, y: 0 }),
+            COLORREF(0),
+            Some(&blend),
+            ULW_ALPHA,
+        )
     }
 
     unsafe fn text(

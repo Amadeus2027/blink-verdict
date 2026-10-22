@@ -442,13 +442,14 @@ impl App {
             height,
             SWP_NOACTIVATE,
         );
-        let initial =
-            blink_verdict::animation::sample(self.effect(), 0.0, duration.map(|d| d.as_secs_f32()));
-        let initial_alpha = (initial.opacity * self.config.theme.opacity as f32).max(1.0) as u8;
-        let _ = SetLayeredWindowAttributes(self.overlay, COLORREF(0), initial_alpha, LWA_ALPHA);
         self.shown_at = Instant::now();
         self.expires_at = duration.map(|d| self.shown_at + d);
         self.visible = true;
+        // Present the new frame while hidden, avoiding a flash of the previous result.
+        self.paint();
+        if !self.visible {
+            return;
+        }
         let _ = ShowWindow(self.overlay, SW_SHOWNOACTIVATE);
         let _ = InvalidateRect(self.overlay, None, false);
         if let Some(delay) = blink_verdict::animation::next_tick(
@@ -482,6 +483,38 @@ impl App {
             self.config.theme.animation
         } else {
             blink_verdict::config::Animation::None
+        }
+    }
+
+    unsafe fn paint(&mut self) {
+        if !self.visible {
+            return;
+        }
+        if self.renderer.is_none() {
+            match render::Renderer::new(self.overlay, &self.config, &self.text) {
+                Ok(renderer) => self.renderer = Some(renderer),
+                Err(_) => {
+                    self.hide();
+                    self.set_status("图形显示初始化失败".into());
+                    return;
+                }
+            }
+        }
+        let motion = blink_verdict::animation::sample(
+            self.effect(),
+            self.shown_at.elapsed().as_secs_f32(),
+            self.expires_at
+                .map(|t| t.saturating_duration_since(Instant::now()).as_secs_f32()),
+        );
+        if self
+            .renderer
+            .as_ref()
+            .unwrap()
+            .paint(&self.config, &self.text, self.editing, motion)
+            .is_err()
+        {
+            self.hide();
+            self.set_status("图形设备不可用，本次显示已跳过".into());
         }
     }
 
@@ -714,32 +747,7 @@ unsafe extern "system" fn overlay_proc(
         WM_PAINT => {
             let mut paint = PAINTSTRUCT::default();
             BeginPaint(hwnd, &mut paint);
-            if app.visible {
-                if app.renderer.is_none() {
-                    match render::Renderer::new(hwnd, &app.config, &app.text) {
-                        Ok(renderer) => app.renderer = Some(renderer),
-                        Err(_) => {
-                            app.hide();
-                            app.set_status("图形显示初始化失败".into());
-                        }
-                    }
-                }
-                if let Some(renderer) = &app.renderer {
-                    let motion = blink_verdict::animation::sample(
-                        app.effect(),
-                        app.shown_at.elapsed().as_secs_f32(),
-                        app.expires_at
-                            .map(|t| t.saturating_duration_since(Instant::now()).as_secs_f32()),
-                    );
-                    if renderer
-                        .paint(&app.config, &app.text, app.editing, motion)
-                        .is_err()
-                    {
-                        app.hide();
-                        app.set_status("图形设备不可用，本次显示已跳过".into());
-                    }
-                }
-            }
+            app.paint();
             let _ = EndPaint(hwnd, &paint);
             LRESULT(0)
         }
@@ -753,9 +761,6 @@ unsafe extern "system" fn overlay_proc(
             let remaining = app
                 .expires_at
                 .map(|t| t.saturating_duration_since(now).as_secs_f32());
-            let motion = blink_verdict::animation::sample(app.effect(), elapsed, remaining);
-            let alpha = (motion.opacity * app.config.theme.opacity as f32).max(1.0) as u8;
-            let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), alpha, LWA_ALPHA);
             let _ = InvalidateRect(hwnd, None, false);
             let _ = KillTimer(hwnd, TIMER_ID);
             if let Some(delay) =
