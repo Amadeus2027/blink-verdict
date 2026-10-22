@@ -2,7 +2,7 @@
 
 Daily work deliberately uses only four core tests (`cargo test --locked --lib`) plus necessary compilation checks. They cover config validity, strict answer selection, provider request/response contracts, and endpoint transport rules. Do not run the broad suite for routine edits.
 
-The default Windows workflow checks formatting, runs these four tests, and builds a portable x64 executable. It does not execute live-provider, game, endurance, or performance tests.
+The default Windows workflow checks formatting, runs these four tests, and builds a portable x64 executable. When the optional component or its art asset changes, it also compiles that component. It does not execute live-provider, game, endurance, or performance tests.
 
 ## Before every release
 
