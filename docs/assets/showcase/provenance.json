@@ -1,15 +1,15 @@
 {
+  "provider_requests": 0,
   "checks": [
     "unfinished field survives page navigation",
     "preview does not save draft mode",
     "changing endpoint clears unsaved key"
   ],
+  "source_commit": "9fd65ea77a7459c82a473afa4360096657ee2a54",
   "font": "Noto Sans SC (downloaded for capture only; not shipped with the application)",
-  "source_commit": "bc5e4c2db5090b530d3a5ee2b8f78a48d4faf8bb",
-  "os": "Microsoft Windows NT 10.0.26100.0",
-  "provider_requests": 0,
-  "capture": "Win32 PrintWindow; composited desktop blur is not guaranteed in offscreen capture",
+  "capture": "Foreground desktop crop where available; Win32 PrintWindow fallback and native overlay frames. Composited blur depends on capture path.",
   "credentials_used": false,
+  "os": "Microsoft Windows NT 10.0.26100.0",
   "kind": "Windows native application capture, editorial presentation",
   "editing": "Native window captures; editorial titles, scaling, fades and cuts; 12 fps GIF. No model call or mock decision."
 }
