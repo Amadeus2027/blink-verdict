@@ -785,23 +785,19 @@ impl Settings {
         } else {
             visual::FIELD
         };
-        let backdrop = if nav { if self.style.glass { COLORREF(0) } else { visual::SIDEBAR } } else { visual::BACKGROUND };
+        let backdrop = if nav {
+            if self.style.glass {
+                COLORREF(0)
+            } else {
+                visual::SIDEBAR
+            }
+        } else {
+            visual::BACKGROUND
+        };
         let clear = CreateSolidBrush(backdrop);
         FillRect(item.hDC, &item.rcItem, clear);
         let _ = DeleteObject(clear);
-        if nav && !selected && !pressed {
-            // The unselected sidebar row shares the material; only its text is drawn.
-        } else {
-                visual::SIDEBAR
-            };
-            visual::rounded(
-                item.hDC,
-                item.rcItem,
-                background,
-                background,
-                (20.0 * self.scale) as i32,
-            );
-        } else {
+        if !nav || selected || pressed {
             visual::rounded(
                 item.hDC,
                 item.rcItem,
