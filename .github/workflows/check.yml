@@ -1,0 +1,62 @@
+name: Windows build and core checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether optional component changed
+        id: changed
+        shell: pwsh
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ($env:BASE_SHA -and $env:BASE_SHA -notmatch '^0+$') {
+            $files = git diff --name-only $env:BASE_SHA HEAD
+          } else {
+            $files = git ls-files
+          }
+          $changed = [bool]($files | Where-Object { $_ -match '^(gamebar/|assets/wordart\.png)' })
+          "gamebar=$($changed.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Core tests only
+        run: cargo test --locked --lib
+      - name: Build native portable executable
+        run: cargo build --locked --release
+      - name: Package development build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/blink-verdict.exe, README.md, CHANGELOG.md -Destination dist
+          Copy-Item docs, assets -Destination dist -Recurse
+          Compress-Archive -Path dist/* -DestinationPath blink-verdict-windows-x64-preview.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blink-verdict-windows-x64-preview
+          path: blink-verdict-windows-x64-preview.zip
+      - uses: microsoft/setup-msbuild@v2
+        if: steps.changed.outputs.gamebar == 'true'
+      - name: Compile optional component when changed
+        if: steps.changed.outputs.gamebar == 'true'
+        run: msbuild gamebar/BlinkVerdict.GameBar.csproj /restore /p:Configuration=Debug /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true
+      - uses: actions/upload-artifact@v4
+        if: steps.changed.outputs.gamebar == 'true'
+        with:
+          name: blink-verdict-gamebar-unsigned-preview
+          path: gamebar/AppPackages/
+          if-no-files-found: error

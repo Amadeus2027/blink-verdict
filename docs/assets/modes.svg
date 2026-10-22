@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="570" viewBox="0 0 1200 570" role="img" aria-label="两种显示模式设计示意，非运行截图">
+  <defs><pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#7e8ea6" stroke-opacity=".07"/></pattern><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#252d3a"/><stop offset="1" stop-color="#111318"/></linearGradient></defs>
+  <rect width="1200" height="570" rx="22" fill="#0e1015"/>
+  <text x="44" y="49" fill="#a1aabd" font-family="Segoe UI,Arial" font-size="12" letter-spacing="3">ONE SHORTCUT. TWO WAYS TO SEE.</text>
+  <text x="44" y="85" fill="#e7e4e0" font-family="Microsoft YaHei UI,Segoe UI" font-size="24">把答案留在视线里，把注意力留给眼前。</text>
+  <rect x="32" y="116" width="552" height="342" rx="14" fill="url(#bg)"/>
+  <rect x="616" y="116" width="552" height="342" rx="14" fill="url(#bg)"/>
+  <rect x="32" y="116" width="1136" height="342" fill="url(#grid)"/>
+  <path d="M32 407l140-147 120 112 114-159 178 194M616 407l140-147 120 112 114-159 178 194" fill="none" stroke="#64758f" stroke-opacity=".25" stroke-width="2"/>
+  <rect x="32" y="116" width="552" height="342" rx="14" fill="#111318" opacity=".6"/>
+  <text x="308" y="309" text-anchor="middle" fill="#d95c54" font-family="Georgia,serif" font-size="94" letter-spacing="12">YES</text>
+  <rect x="846" y="149" width="288" height="142" rx="9" fill="#111318" opacity=".94" stroke="#333b49"/>
+  <text x="990" y="175" text-anchor="middle" fill="#929bad" font-family="Segoe UI,Arial" font-size="9" letter-spacing="3">BLINKVERDICT</text>
+  <text x="990" y="231" text-anchor="middle" fill="#d95c54" font-family="Georgia,serif" font-size="40">YES</text>
+  <text x="990" y="270" text-anchor="middle" fill="#929bad" font-family="Segoe UI,Arial" font-size="10">Ctrl + Alt + Space</text>
+  <text x="44" y="499" fill="#e7e4e0" font-family="Microsoft YaHei UI,Segoe UI" font-size="19">全屏浮现</text>
+  <text x="44" y="529" fill="#929bad" font-family="Microsoft YaHei UI,Segoe UI" font-size="14">短暂出现，自动淡出。</text>
+  <text x="628" y="499" fill="#e7e4e0" font-family="Microsoft YaHei UI,Segoe UI" font-size="19">悬浮组件</text>
+  <text x="628" y="529" fill="#929bad" font-family="Microsoft YaHei UI,Segoe UI" font-size="14">保留片刻，然后隐身。时长由你设置。</text>
+  <text x="1155" y="553" text-anchor="end" fill="#626c7e" font-family="Microsoft YaHei UI,Segoe UI" font-size="10">效果示意 · 非运行截图</text>
+</svg>

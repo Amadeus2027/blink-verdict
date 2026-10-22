@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="138" viewBox="0 0 680 138" role="img" aria-label="BlinkVerdict 一瞬决断">
+  <rect x="6" y="22" width="88" height="88" rx="24" fill="#171a22"/>
+  <path d="M29 53h22l-9 16h22L50 91l3-18H32l10-16H29z" fill="#d95c54"/>
+  <circle cx="75" cy="43" r="4" fill="#d6b878"/>
+  <text x="117" y="73" font-family="Segoe UI,Arial,sans-serif" font-size="47" font-weight="600" fill="#d95c54" letter-spacing="-1.5">BlinkVerdict</text>
+  <text x="120" y="105" font-family="Microsoft YaHei UI,Segoe UI,sans-serif" font-size="17" fill="#8d95a6" letter-spacing="5">一瞬决断 / PRESS. DECIDE. CONTINUE.</text>
+</svg>
