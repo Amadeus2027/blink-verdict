@@ -21,7 +21,7 @@
   <a href="https://github.com/Amadeus2027/blink-verdict/actions/workflows/check.yml"><img src="https://github.com/Amadeus2027/blink-verdict/actions/workflows/check.yml/badge.svg" alt="Windows build and core checks" /></a>
 </p>
 
-<p align="center"><img src="docs/assets/modes.svg" alt="设计示意：全屏文字与悬浮决策组件；不是运行截图" width="1000" /><br/><sub>效果示意，非运行截图。实际效果以 Windows 构建为准。</sub></p>
+<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="Windows 原生界面与浮窗预览：目标、模型、外观、字效与窗口布局" width="960" /></a><br/><sub>Windows 原生窗口采集与预览序列，经片头、转场剪辑。未调用模型；系统玻璃效果取决于 Windows 与采集方式。</sub></p>
 
 > **开发预览**：当前提供实现源码与 Windows 构建工作流。桌面焦点、游戏覆盖、Game Bar 和资源占用均须 Windows 实机验收；尚无已验证的独占全屏游戏清单。不是稳定发行版。
 
@@ -146,7 +146,7 @@ cargo build --locked --release
 
 ## 界面与交互
 
-界面参考 iOS 深色模式的克制层级：侧栏导航、圆角输入区、轻边框与明确的主次按钮。设置窗口在支持的 Windows 11 系统使用原生 acrylic 背景，不支持时回退到实色；悬浮组件使用带透明度的圆角显示层。它是 Windows 原生实现，不是 iOS 移植，也不依赖 WebView。
+界面参考 iOS 深色模式的克制层级：侧栏导航、圆角输入区、轻边框与明确的主次按钮。设置窗口在支持的 Windows 11 系统为侧栏使用原生 acrylic 背景，内容区保持实色以保证文字清晰，不支持时回退到实色；悬浮组件使用带透明度的圆角显示层。它是 Windows 原生实现，不是 iOS 移植，也不依赖 WebView。
 
 交互取舍参考 [Rainmeter 的管理 / 锁定](https://docs.rainmeter.net/manual/user-interface/manage/)、[ShareX 的悬浮操作](https://getsharex.com/docs/pin-to-screen)与 [PowerToys 的状态反馈](https://learn.microsoft.com/en-us/windows/powertoys/always-on-top)。[录制与展示说明](docs/showcase.md)
 

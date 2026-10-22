@@ -101,7 +101,16 @@ jobs:
           path: showcase-frames
       - name: Edit footage and export GIF
         run: |
-          command -v ffmpeg || (sudo apt-get update -qq && sudo apt-get install -y ffmpeg)
+          if ! command -v ffmpeg; then
+            # Some runners have no FFmpeg; avoid the slow HTTP Azure mirror fallback.
+            for apt_source_file in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+              if [ -f "$apt_source_file" ]; then
+                sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$apt_source_file"
+              fi
+            done
+            sudo apt-get -o Acquire::Retries=1 -o Acquire::https::Timeout=20 update -qq
+            sudo apt-get -o Acquire::Retries=1 -o Acquire::https::Timeout=20 install -y --no-install-recommends ffmpeg
+          fi
           python3 scripts/showcase/render.py showcase-frames showcase-edit
       - uses: actions/upload-artifact@v4
         with:
