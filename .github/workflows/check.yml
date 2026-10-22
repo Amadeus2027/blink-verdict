@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: windows-${{ github.event.pull_request.head.ref || github.ref_name }}
+  group: windows-${{ github.event_name }}-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 jobs:
   windows:
