@@ -10,6 +10,7 @@ const APPLY_PRESET: usize = 203;
 const CLEAR_KEY: usize = 204;
 const PICK_IMAGE: usize = 205;
 const REMOVE_IMAGE: usize = 206;
+const RESET_WIDGET: usize = 207;
 const PAGE_BASE: usize = 210;
 
 pub(super) struct Settings {
@@ -231,7 +232,7 @@ impl Settings {
             680,
             28,
         );
-        for (index, title) in ["决策", "模型", "外观", "字效", "关于 / 状态"]
+        for (index, title) in ["决策", "模型", "外观", "字效", "浮窗", "关于 / 状态"]
             .iter()
             .enumerate()
         {
@@ -241,9 +242,9 @@ impl Settings {
                 w!("BUTTON"),
                 title,
                 WS_TABSTOP | WINDOW_STYLE(BS_PUSHBUTTON as u32),
-                28 + index as i32 * 138,
+                28 + index as i32 * 115,
                 56,
-                126,
+                105,
                 32,
             );
         }
@@ -288,6 +289,11 @@ impl Settings {
                     310,
                     "接口协议",
                     &[
+                        "专用决策 · TypeSafe Jev",
+                        "专用决策 · Perplexity Decider",
+                        "专用决策 · Cloudflare Clef",
+                        "专用决策 · OpenAI Decisions",
+                        "本地决策 · System One / vLLM",
                         "OpenAI 兼容 · Chat Completions",
                         "OpenAI · Responses",
                         "Anthropic · Messages",
@@ -302,6 +308,10 @@ impl Settings {
                     311,
                     "服务预设",
                     &[
+                        "TypeSafe Jev（云端）",
+                        "Perplexity Decider（云端）",
+                        "Cloudflare Clef（填写 Account ID）",
+                        "OpenAI Decisions（云端）",
                         "OpenAI",
                         "DeepSeek（文字）",
                         "通义千问 Qwen",
@@ -311,6 +321,9 @@ impl Settings {
                         "Anthropic",
                         "Google Gemini",
                         "Ollama（本机）",
+                        "本地决策 · System One",
+                        "本地决策 · Decider",
+                        "本地决策 · OpenAI Decisions（文字）",
                     ],
                     0,
                     156,
@@ -374,14 +387,15 @@ impl Settings {
                 self.edit(
                     parent,
                     317,
-                    "最大输出 tokens",
+                    "兼容接口输出 tokens",
                     &c.output_tokens.to_string(),
                     522,
                     0,
                 );
+                let _ = EnableWindow(self.hwnd(317), !c.provider.is_decision());
                 self.label(
                     parent,
-                    "云端服务接收截图或 OCR 文字；本地需自行运行模型。请确认模型支持所选输入。",
+                    "本地填 http://127.0.0.1:端口/版本路径，需运行匹配协议的服务，密钥可留空。\r\nJev 截图为实验能力；专用决策接口不使用输出 tokens。",
                     28,
                     566,
                     680,
@@ -441,7 +455,7 @@ impl Settings {
                     },
                     452,
                 );
-                self.label(parent, "悬浮保留设为 0 表示保持可见。位置和大小从托盘“编辑悬浮窗口”调整。\r\n两种模式共用字体与配色；字号和时长独立。预览会先保存设置。", 28, 514, 680, 64);
+                self.label(parent, "悬浮保留设为 0 表示保持可见。位置和大小可在“浮窗”页填写，也可从托盘拖动调整。\r\n两种模式共用字体与配色；字号和时长独立。预览会先保存设置。", 28, 514, 680, 64);
             }
             3 => {
                 self.combo(
@@ -496,6 +510,28 @@ impl Settings {
                     32,
                 );
                 self.label(parent, "PNG 映射优先于内置风格；文件无效时回退到原生文字。\r\n原生通道上限：8 MB / 4096×4096；Game Bar 自定义图上限：32 KB。\r\n文件保留在原位置，移动文件后请重新选择；这里不会调用在线图像生成。", 28, 460, 680, 96);
+            }
+            4 => {
+                for (id, label, value, y) in [
+                    (350, "横坐标 X（像素）", c.widget_x, 120),
+                    (351, "纵坐标 Y（像素）", c.widget_y, 168),
+                    (352, "宽度 160–1600", c.widget_width, 216),
+                    (353, "高度 80–1000", c.widget_height, 264),
+                ] {
+                    self.edit(parent, id, label, &value.to_string(), y, 0);
+                }
+                self.control(
+                    parent,
+                    RESET_WIDGET,
+                    w!("BUTTON"),
+                    "恢复默认位置 / 尺寸",
+                    WS_TABSTOP,
+                    460,
+                    324,
+                    250,
+                    32,
+                );
+                self.label(parent, "支持负坐标（左侧 / 上方显示器），显示时自动限制在可见工作区。\r\n也可从托盘进入“编辑悬浮窗口”：拖动内部移动，拖动边缘或角落缩放。\r\n再次点击托盘编辑项结束调整；拖放结束自动保存，结束编辑后恢复点击穿透。\r\n日常显示和调整时均不主动激活窗口。Game Bar 的位置 / 大小由其面板调整。", 28, 390, 680, 150);
             }
             _ => {
                 self.label(parent, "轻量后台 AI 决策助手 · v0.1.0 开发预览\r\n\r\n按键 → 当前屏幕 → 模型判断 → 短暂显示\r\n默认不保存截图或判断历史，不进行后台屏幕监控。\r\n结果仅供参考；模型与服务由用户自行配置。\r\n\r\n独占全屏采用可选 Game Bar 组件，尚未实机验证。\r\n不采用进程注入或图形 Hook。\r\n项目：https://github.com/Amadeus2027/blink-verdict", 28, 118, 680, 240);
@@ -628,6 +664,18 @@ impl Settings {
                     _ => ArtStyle::Plain,
                 };
             }
+            4 => {
+                let coordinate = |id| {
+                    self.text(id)
+                        .trim()
+                        .parse::<i32>()
+                        .map_err(|_| "位置和尺寸请填写有效整数".to_string())
+                };
+                c.widget_x = coordinate(350)?;
+                c.widget_y = coordinate(351)?;
+                c.widget_width = coordinate(352)?;
+                c.widget_height = coordinate(353)?;
+            }
             _ => {
                 c.gamebar_package_family = self.text(330).trim().into();
             }
@@ -640,47 +688,70 @@ impl Settings {
     unsafe fn preset(&mut self, parent: HWND) {
         let index = self.selection(311);
         let (provider, endpoint, model, vision) = match index {
-            1 => (
+            5 => (
                 Provider::OpenAi,
                 "https://api.deepseek.com/v1",
                 "deepseek-chat",
                 false,
             ),
-            2 => (
+            6 => (
                 Provider::OpenAi,
                 "https://dashscope.aliyuncs.com/compatible-mode/v1",
                 "qwen-vl-plus",
                 true,
             ),
-            3 => (
+            7 => (
                 Provider::OpenAi,
                 "https://api.siliconflow.cn/v1",
                 "Qwen/Qwen2.5-VL-72B-Instruct",
                 true,
             ),
-            4 => (
+            8 => (
                 Provider::OpenAi,
                 "https://openrouter.ai/api/v1",
                 "openai/gpt-4o-mini",
                 true,
             ),
-            5 => (
+            9 => (
                 Provider::OpenAi,
                 "http://127.0.0.1:1234/v1",
                 "local-model",
                 true,
             ),
-            6 => {
+            10 => {
                 let (e, m) = Provider::Anthropic.defaults();
                 (Provider::Anthropic, e, m, true)
             }
-            7 => {
+            11 => {
                 let (e, m) = Provider::Gemini.defaults();
                 (Provider::Gemini, e, m, true)
             }
-            8 => {
+            12 => {
                 let (e, m) = Provider::Ollama.defaults();
                 (Provider::Ollama, e, m, true)
+            }
+            13 => (
+                Provider::SystemOne,
+                "http://127.0.0.1:8000/v1",
+                "local-decision-model",
+                false,
+            ),
+            14 => (
+                Provider::Decider,
+                "http://127.0.0.1:8000/v1",
+                "local-decision-model",
+                true,
+            ),
+            15 => (
+                Provider::OpenAiDecisions,
+                "http://127.0.0.1:8000/v1",
+                "local-decision-model",
+                false,
+            ),
+            0..=3 => {
+                let p = index_provider(index);
+                let (e, m) = p.defaults();
+                (p, e, m, true)
             }
             _ => {
                 let (e, m) = Provider::OpenAi.defaults();
@@ -736,23 +807,24 @@ impl Settings {
     }
 }
 
+const PROVIDERS: [Provider; 10] = [
+    Provider::Jev,
+    Provider::Decider,
+    Provider::Clef,
+    Provider::OpenAiDecisions,
+    Provider::SystemOne,
+    Provider::OpenAi,
+    Provider::OpenAiResponses,
+    Provider::Anthropic,
+    Provider::Gemini,
+    Provider::Ollama,
+];
+
 fn provider_index(provider: Provider) -> usize {
-    match provider {
-        Provider::OpenAi => 0,
-        Provider::OpenAiResponses => 1,
-        Provider::Anthropic => 2,
-        Provider::Gemini => 3,
-        Provider::Ollama => 4,
-    }
+    PROVIDERS.iter().position(|p| *p == provider).unwrap_or(0)
 }
 fn index_provider(index: usize) -> Provider {
-    match index {
-        1 => Provider::OpenAiResponses,
-        2 => Provider::Anthropic,
-        3 => Provider::Gemini,
-        4 => Provider::Ollama,
-        _ => Provider::OpenAi,
-    }
+    PROVIDERS.get(index).copied().unwrap_or(Provider::Jev)
 }
 
 unsafe fn error(parent: HWND, message: &str) {
@@ -828,6 +900,13 @@ pub(super) unsafe extern "system" fn window_proc(
                     .as_mut()
                     .unwrap()
                     .image(hwnd, id == REMOVE_IMAGE),
+                310 if wparam.0 >> 16 == CBN_SELCHANGE as usize => {
+                    let ui = app.settings_ui.as_ref().unwrap();
+                    let _ = EnableWindow(
+                        ui.hwnd(317),
+                        !index_provider(ui.selection(310)).is_decision(),
+                    );
+                }
                 341 if wparam.0 >> 16 == CBN_SELCHANGE as usize => {
                     let ui = app.settings_ui.as_ref().unwrap();
                     let label = ui.draft.options.get(ui.selection(341));
@@ -838,13 +917,22 @@ pub(super) unsafe extern "system" fn window_proc(
                     let value = wide(path);
                     let _ = SetWindowTextW(ui.hwnd(342), PCWSTR(value.as_ptr()));
                 }
+                RESET_WIDGET => {
+                    let ui = app.settings_ui.as_mut().unwrap();
+                    let defaults = Config::default();
+                    ui.draft.widget_x = defaults.widget_x;
+                    ui.draft.widget_y = defaults.widget_y;
+                    ui.draft.widget_width = defaults.widget_width;
+                    ui.draft.widget_height = defaults.widget_height;
+                    ui.build(hwnd);
+                }
                 CLEAR_KEY => {
                     let ui = app.settings_ui.as_mut().unwrap();
                     ui.pending_key = Some(String::new());
                     let _ = SetWindowTextW(ui.hwnd(314), w!(""));
                     error(hwnd, "保存后删除当前地址的密钥；取消则不删除。");
                 }
-                value if (PAGE_BASE..PAGE_BASE + 5).contains(&value) => {
+                value if (PAGE_BASE..PAGE_BASE + 6).contains(&value) => {
                     let ui = app.settings_ui.as_mut().unwrap();
                     match ui.collect() {
                         Ok(()) => {

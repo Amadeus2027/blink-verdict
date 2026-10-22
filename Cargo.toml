@@ -9,12 +9,11 @@ publish = false
 base64 = "0.22"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "native-tls"] }
 
 [target.'cfg(windows)'.dependencies]
-png = "0.17"
 windows = { version = "0.58", features = [
   "Foundation", "Foundation_Collections", "ApplicationModel_AppService", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams",
+  "Win32_Networking_WinHttp", "Win32_Graphics_Imaging", "Win32_System_Com_StructuredStorage",
   "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Direct2D",
   "Win32_Graphics_Direct2D_Common", "Win32_Graphics_DirectWrite", "Win32_Graphics_Dwm",
   "Win32_Graphics_Dxgi_Common", "Foundation_Numerics", "Win32_Graphics_Gdi", "Win32_Security",

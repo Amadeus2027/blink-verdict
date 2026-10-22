@@ -60,20 +60,9 @@ pub fn observe(rect: RECT, vision: bool) -> Result<Observation, String> {
             .map(Observation::Text)
             .map_err(|_| "本机 OCR 不可用，请安装 Windows OCR 语言包或改用视觉模型".into());
     }
-    let mut rgb = Vec::with_capacity((width * height * 3) as usize);
-    for p in pixels.chunks_exact(4) {
-        rgb.extend_from_slice(&[p[2], p[1], p[0]]);
-    }
-    drop(pixels);
-    let mut encoded = Vec::new();
-    {
-        let mut encoder = png::Encoder::new(&mut encoded, width, height);
-        encoder.set_color(png::ColorType::Rgb);
-        encoder.set_depth(png::BitDepth::Eight);
-        let mut writer = encoder.write_header().map_err(|e| e.to_string())?;
-        writer.write_image_data(&rgb).map_err(|e| e.to_string())?;
-    }
-    Ok(Observation::Image(encoded))
+    blink_verdict::imaging::encode_screen_png(width, height, &pixels)
+        .map(Observation::Image)
+        .map_err(|_| "Windows PNG 编码失败".into())
 }
 
 unsafe fn pixels(rect: RECT) -> Result<(u32, u32, Vec<u8>), String> {

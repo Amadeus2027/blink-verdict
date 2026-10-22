@@ -44,7 +44,7 @@ fn wide(text: &str) -> Vec<u16> {
 
 enum WorkerEvent {
     Captured,
-    Finished(Result<(String, bool), String>),
+    Finished(Result<(String, bool, String), String>),
 }
 
 pub(super) struct App {
@@ -322,8 +322,23 @@ impl App {
                     self.editing = true;
                     let style = WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED;
                     SetWindowLongPtrW(self.overlay, GWL_EXSTYLE, style.0 as isize);
+                    // Sizing hit-tests require a sizing frame; WM_NCCALCSIZE keeps it borderless.
+                    SetWindowLongPtrW(
+                        self.overlay,
+                        GWL_STYLE,
+                        (WS_POPUP | WS_THICKFRAME).0 as isize,
+                    );
+                    let _ = SetWindowPos(
+                        self.overlay,
+                        None,
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    );
                     self.show(
-                        "拖动以调整位置".into(),
+                        "拖动移动 · 边缘缩放".into(),
                         capture::foreground_rect(),
                         None,
                         false,
@@ -369,6 +384,16 @@ impl App {
 
     unsafe fn lock_widget(&mut self) {
         self.editing = false;
+        SetWindowLongPtrW(self.overlay, GWL_STYLE, WS_POPUP.0 as isize);
+        let _ = SetWindowPos(
+            self.overlay,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+        );
         SetWindowLongPtrW(
             self.overlay,
             GWL_EXSTYLE,
@@ -594,7 +619,7 @@ impl App {
                     if let Some(bridge) = &bridge {
                         bridge.send(&config, "show", &text, rect)?;
                     }
-                    return Ok((text, bridge.is_some()));
+                    return Ok((text, bridge.is_some(), "样式预览（未调用模型）".into()));
                 }
                 let observation = capture::observe(rect, config.vision)?;
                 if config.mode == DisplayMode::Widget {
@@ -615,14 +640,31 @@ impl App {
                         return Err(error);
                     }
                 };
-                let text = match verdict {
+                let mut details = String::new();
+                if let Some(confidence) = verdict.confidence {
+                    details.push_str(&format!(
+                        "\n模型置信度：{:.1}%（由服务提供，并非正确率保证）",
+                        confidence * 100.0
+                    ));
+                }
+                for (i, p) in verdict.probabilities.iter().enumerate() {
+                    if let Some(p) = p {
+                        let label = config
+                            .options
+                            .get(i)
+                            .map(String::as_str)
+                            .unwrap_or("无法判断");
+                        details.push_str(&format!("\n{label}：{:.1}%", p * 100.0));
+                    }
+                }
+                let text = match verdict.verdict {
                     Verdict::Choice(index) => config.options[index].clone(),
                     Verdict::Uncertain => "无法判断".into(),
                 };
                 if let Some(bridge) = &bridge {
                     bridge.send(&config, "show", &text, rect)?;
                 }
-                Ok((text, bridge.is_some()))
+                Ok((text, bridge.is_some(), details))
             })();
             if initialized {
                 RoUninitialize();
@@ -648,8 +690,8 @@ impl App {
                     self.busy = false;
                     self.receiver = None;
                     match result {
-                        Ok((text, gamebar)) => {
-                            self.set_status(format!("最近决策：{text}"));
+                        Ok((text, gamebar, details)) => {
+                            self.set_status(format!("最近决策：{text}{details}"));
                             if !gamebar {
                                 self.show_result(text, self.capture_rect);
                             }
@@ -727,6 +769,7 @@ unsafe extern "system" fn overlay_proc(
     }
     let app = &mut *pointer;
     match message {
+        WM_NCCALCSIZE => LRESULT(0),
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
         WM_NCHITTEST => {
             if !app.editing {

@@ -1,15 +1,15 @@
 # Testing and release gates
 
-Daily work deliberately uses only four core tests (`cargo test --locked --lib`) plus necessary compilation checks. They cover config validity, strict answer selection, provider request/response contracts, and endpoint transport rules. Do not run the broad suite for routine edits.
+Daily work uses four core groups (`cargo test --locked --lib`) plus necessary compilation checks. They cover config validity and legacy compatibility, strict answer selection, structured decision / chat contracts, and endpoint transport rules. On Windows, the provider group includes one loopback WinHTTP smoke check, and one additional native PNG test checks screenshot encoding, cropped decoding and premultiplied alpha (five tests total). These are the minimum checks for replacing the HTTP and image-codec dependencies. Do not run the broad suite for routine edits.
 
-The default Windows workflow checks formatting, runs these four tests, and builds a portable x64 executable. When the optional component or its art asset changes, it also compiles that component. It does not execute live-provider, game, endurance, or performance tests.
+The default Windows workflow checks formatting, runs these five tests on Windows, and builds a portable x64 executable. When the optional component or its art asset changes, it also compiles that component. It does not execute live-provider, game, endurance, or performance tests.
 
 ## Before every release
 
 Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and actual evidence. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
 
 1. `cargo fmt --all -- --check`, `cargo test --locked --lib`, `cargo build --locked --release` on Windows.
-2. `cargo test --locked --test release_providers -- --ignored`. These three grouped tests use only a loopback mock server; cover all five adapters and both input routes, credentials in headers, keep-alive unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
+2. `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all ten protocol adapters / variants and both input routes, credentials in headers, keep-alive unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
 3. Run the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
 
 ## Windows manual matrix (stored outside daily tests)
@@ -20,9 +20,9 @@ Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and ac
 | Shortcuts | Default, reassigned, occupied shortcut, auto-repeat, trigger while busy/settings/editing | Conflict reported; no duplicate requests or stuck busy state |
 | Capture | Primary/secondary/negative-origin displays, 100/150/200% DPI, prior result visible | Correct foreground monitor; no self-overlay; no saved capture |
 | OCR | Installed Chinese/English OCR, no OCR language, empty text, graphic-only scene | Usable text or clear tray error; no guessed graphics interpretation |
-| Providers | Actual vision and text models per adapter, refused content, thinking budget, unreachable endpoint | Existing option or abstention; failures never become valid decisions |
+| Providers | Actual hosted and local decision services (System One, Decider, OpenAI Decisions), retained chat adapters, vision/OCR, refusal, probabilities, unreachable endpoint | Existing option or abstention; failures never become valid decisions |
 | Fullscreen | Short/long/custom Chinese answer, 300/1500/60000 ms, all five effects | Fits visible area, bounded lifetime, no focus/input changes |
-| Widget | First startup, processing, success/error, 0/5000 ms, retrigger, edit/lock, resize, unplug monitor | Starts hidden; fresh result timer; click-through outside edit; recovers on screen |
+| Widget | Numeric X/Y/width/height, negative origin, reset, restart persistence, processing, error, 0/5000 ms, edit/lock, resize, unplug monitor | Starts hidden; fresh result timer; click-through outside edit; recovers on screen |
 | Word art | Three generated presets, both YES/NO rows, arbitrary custom labels, custom RGBA PNG, missing/oversized PNG | Correct sprite, true alpha, fallback to readable text, no idle image retention |
 | Games | At least one borderless and one exclusive candidate; record anti-cheat and game/version | Keyboard/mouse continue; no pause, focus steal, or process injection |
 | Game Bar | Not installed, wrong family, closed/unpinned/non-click-through, both sizes/modes, all effects, disconnect | Reject unsafe/unavailable display; no panel launch; host foreground unchanged |

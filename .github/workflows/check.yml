@@ -38,12 +38,17 @@ jobs:
         run: cargo test --locked --lib
       - name: Build native portable executable
         run: cargo build --locked --release
+      - name: Record executable size
+        shell: pwsh
+        run: |
+          $binary = Get-Item target/release/blink-verdict.exe
+          "Native executable: $($binary.Length) bytes" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
       - name: Package development build
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target/release/blink-verdict.exe, README.md, CHANGELOG.md -Destination dist
-          Copy-Item docs, assets -Destination dist -Recurse
+          Copy-Item target/release/blink-verdict.exe, CHANGELOG.md -Destination dist
+          Copy-Item docs/portable.md -Destination dist/README.md
           Compress-Archive -Path dist/* -DestinationPath blink-verdict-windows-x64-preview.zip
       - uses: actions/upload-artifact@v4
         with:

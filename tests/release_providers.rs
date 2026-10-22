@@ -1,4 +1,5 @@
 //! Explicit release-only network regressions. Never contacts a real model service.
+#![cfg(windows)]
 use blink_verdict::{
     config::{Config, Provider},
     decision::Verdict,
@@ -83,6 +84,11 @@ fn reply(stream: &mut TcpStream, status: &str, body: &str, extra: &str) {
 #[ignore = "release-only: exercises the real HTTP transport for every adapter"]
 fn all_adapters_send_observations_and_map_results() {
     for provider in [
+        Provider::Jev,
+        Provider::SystemOne,
+        Provider::Decider,
+        Provider::Clef,
+        Provider::OpenAiDecisions,
         Provider::OpenAi,
         Provider::OpenAiResponses,
         Provider::Anthropic,
@@ -107,7 +113,21 @@ fn all_adapters_send_observations_and_map_results() {
                     "visible screen text"
                 }));
                 let answer = "{\"choice\":\"option_2\"}";
+                if provider == Provider::Jev && vision {
+                    assert!(lower.contains("typesafe-danger-zone-images: true"));
+                }
                 let response = match provider {
+                    Provider::Jev | Provider::SystemOne | Provider::Decider | Provider::Clef => {
+                        let answer = json!({"answers":{"decision":{"type":"choice","choice":"option_2","confidence":0.8,"probabilities":{"option_1":0.1,"option_2":0.8,"uncertain":0.1}}}});
+                        if provider == Provider::Clef {
+                            json!({"success":true,"result":answer})
+                        } else {
+                            answer
+                        }
+                    }
+                    Provider::OpenAiDecisions => {
+                        json!({"answers":[{"type":"choice","name":"decision","choice":"option_2","confidence":0.8,"probabilities":[{"value":"option_1","probability":0.1},{"value":"option_2","probability":0.8},{"value":"uncertain","probability":0.1}]}]})
+                    }
                     Provider::OpenAi => json!({"choices":[{"message":{"content":answer}}]}),
                     Provider::OpenAiResponses => {
                         json!({"output":[{"type":"message","content":[{"type":"output_text","text":answer}]}]})
@@ -125,6 +145,7 @@ fn all_adapters_send_observations_and_map_results() {
             });
             let config = Config {
                 provider,
+                model: provider.defaults().1.into(),
                 endpoint,
                 vision,
                 ..Config::default()
@@ -136,7 +157,7 @@ fn all_adapters_send_observations_and_map_results() {
             };
             let result = decide(&config, "release-test-key", input);
             worker.join().unwrap();
-            assert_eq!(result.unwrap(), Verdict::Choice(1));
+            assert_eq!(result.unwrap().verdict, Verdict::Choice(1));
         }
     }
 }
@@ -193,6 +214,8 @@ fn timeout_and_unknown_choice_are_failures() {
     });
     let config = Config {
         endpoint,
+        provider: Provider::OpenAi,
+        model: Provider::OpenAi.defaults().1.into(),
         ..Config::default()
     };
     assert!(decide(&config, "", Observation::Text("screen".into())).is_err());
