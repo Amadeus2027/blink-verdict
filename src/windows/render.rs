@@ -148,20 +148,6 @@ impl Renderer {
         })
     }
 
-    pub unsafe fn print_to(&self, dc: HDC) {
-        let _ = BitBlt(
-            dc,
-            0,
-            0,
-            self.surface.size.cx,
-            self.surface.size.cy,
-            self.surface.dc,
-            0,
-            0,
-            SRCCOPY,
-        );
-    }
-
     pub unsafe fn paint(
         &self,
         config: &Config,

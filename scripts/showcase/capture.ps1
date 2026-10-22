@@ -18,6 +18,14 @@ public static class NativeDemo {
  [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd,uint attribute,out Rect value,int size);
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr dc,uint flags);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr CreateWindowEx(uint ex,string cls,string title,uint style,int x,int y,int width,int height,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr param);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
+ [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd,int command);
+ [DllImport("user32.dll")] public static extern bool UpdateWindow(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool DestroyWindow(IntPtr hwnd);
+ [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr obj);
+ public static IntPtr CreateStage() { return CreateWindowEx(0x08000088,"STATIC","BlinkVerdict recording stage",0x9000000E,0,0,GetSystemMetrics(0),GetSystemMetrics(1),IntPtr.Zero,IntPtr.Zero,GetModuleHandle(null),IntPtr.Zero); }
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int cx,int cy,uint flags);
  [DllImport("gdi32.dll",CharSet=CharSet.Unicode)] public static extern int AddFontResourceEx(string path,uint flags,IntPtr reserved);
 }
@@ -33,7 +41,7 @@ New-Item -ItemType Directory -Force "$demoData/BlinkVerdict" | Out-Null
 @{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); theme=@{font='Noto Sans SC'; widget_duration_ms=0; text_color='D3E8FF'; background_color='18212F'} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
 $env:LOCALAPPDATA = $demoData
 $env:RUST_BACKTRACE = '1'
-$app = Start-Process -FilePath (Resolve-Path $Executable) -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
+$app = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--recordable-preview' -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
 function Send-Command([IntPtr]$Window,[int]$Id) { [void][NativeDemo]::SendMessage($Window,0x111,[IntPtr]$Id,[IntPtr]::Zero) }
 function Set-Text([IntPtr]$Window,[int]$Id,[string]$Text) { [void][NativeDemo]::TextMessage([NativeDemo]::GetDlgItem($Window,$Id),0xC,[IntPtr]::Zero,$Text) }
 function Capture([IntPtr]$Window,[string]$Name) {
@@ -52,7 +60,7 @@ function Capture([IntPtr]$Window,[string]$Name) {
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
  $captured = $false
- if ($Name -notlike 'widget-*' -and [NativeDemo]::GetForegroundWindow() -eq $Window) {
+ if ($Name -like 'widget-*' -or [NativeDemo]::GetForegroundWindow() -eq $Window) {
   try {
    $graphics.CopyFromScreen($rect.Left,$rect.Top,0,0,$bitmap.Size,[System.Drawing.CopyPixelOperation]::SourceCopy)
    $captured = $true
@@ -61,8 +69,7 @@ function Capture([IntPtr]$Window,[string]$Name) {
  if (-not $captured) {
   $dc = $graphics.GetHdc()
   try {
-   if ($Name -like 'widget-*') { [void][NativeDemo]::SendMessage($Window,0x318,$dc,[IntPtr]4) }
-   elseif (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" }
+   if (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" }
   }
   finally { $graphics.ReleaseHdc($dc) }
  }
@@ -75,6 +82,8 @@ function Capture([IntPtr]$Window,[string]$Name) {
  $bitmap.Save((Join-Path $Output "$Name.png"),[System.Drawing.Imaging.ImageFormat]::Png)
  $bitmap.Dispose()
 }
+$stage=[IntPtr]::Zero
+$stageImage=[IntPtr]::Zero
 try {
  $hostWindow = [IntPtr]::Zero
  for ($i=0;$i -lt 100;$i++) { $hostWindow=[NativeDemo]::FindByClass('BlinkVerdict.Host'); if ($hostWindow -ne [IntPtr]::Zero) {break}; Start-Sleep -Milliseconds 100 }
@@ -117,7 +126,19 @@ try {
  # Preview a widget using the current draft, without applying its mode to disk.
  Send-Command $settings 210
  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]1,[IntPtr]::Zero)
+ Capture $settings '06-finish'
+ # A plain editorial backdrop, created only by this recording script on its runner.
+ $stage=[NativeDemo]::CreateStage()
+ if ($stage -eq [IntPtr]::Zero) { throw 'Could not create the recording backdrop.' }
+ $canvas=New-Object System.Drawing.Bitmap ([NativeDemo]::GetSystemMetrics(0)),([NativeDemo]::GetSystemMetrics(1))
+ $paint=[System.Drawing.Graphics]::FromImage($canvas)
+ $paint.Clear([System.Drawing.Color]::FromArgb(10,16,27));$paint.Dispose()
+ $stageImage=$canvas.GetHbitmap();$canvas.Dispose()
+ [void][NativeDemo]::SendMessage($stage,0x172,[IntPtr]::Zero,$stageImage)
+ [void][NativeDemo]::UpdateWindow($stage)
+ [void][NativeDemo]::ShowWindow($settings,0)
  Send-Command $settings 201
+ Start-Sleep -Milliseconds 250
  $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
  if (-not [NativeDemo]::IsWindowVisible($overlay)) { throw 'Native widget preview was not visible.' }
  for ($frame=0;$frame -lt 24;$frame++) {
@@ -129,13 +150,16 @@ try {
  }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
  if ($disk.mode -ne 'Fullscreen') {throw 'Preview unexpectedly persisted the draft.'}
- Capture $settings '06-finish'
  @{
    kind='Windows native application capture, editorial presentation';
    source_commit=$env:GITHUB_SHA; os=[Environment]::OSVersion.VersionString;
    font='Noto Sans SC (downloaded for capture only; not shipped with the application)';
-   capture='Foreground desktop crop where available; Win32 PrintWindow fallback and native overlay frames. Composited blur depends on capture path.';
-   provider_requests=0; credentials_used=$false;
+   capture='Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic solid stage behind the overlay.';
+   provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
    checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','native overlay preview visible and nonblank');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
-} finally { if (-not $app.HasExited) {Stop-Process -Id $app.Id -Force} }
+} finally {
+ if ($stage -ne [IntPtr]::Zero) { [void][NativeDemo]::DestroyWindow($stage) }
+ if ($stageImage -ne [IntPtr]::Zero) { [void][NativeDemo]::DeleteObject($stageImage) }
+ if (-not $app.HasExited) {Stop-Process -Id $app.Id -Force}
+}

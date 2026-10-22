@@ -57,6 +57,7 @@ pub(super) struct App {
     config: Config,
     presentation: Option<Config>,
     paused: bool,
+    recording_preview: bool,
     config_path: PathBuf,
     status: String,
     busy: bool,
@@ -91,6 +92,7 @@ pub fn run() {
             .unwrap_or_else(std::env::temp_dir)
             .join("BlinkVerdict")
             .join("config.json");
+        let recording_preview = std::env::args_os().any(|arg| arg == "--recordable-preview");
         let first_run = !path.exists();
         let (config, status) = match Config::load(&path) {
             Ok(c) => (c, "待命；请先通过托盘设置模型与判断任务".into()),
@@ -135,6 +137,7 @@ pub fn run() {
             config,
             presentation: None,
             paused: false,
+            recording_preview,
             config_path: path,
             status,
             busy: false,
@@ -181,7 +184,9 @@ pub fn run() {
         }
         SetWindowLongPtrW(app.overlay, GWLP_USERDATA, (&mut *app as *mut App) as isize);
         // Also hide ourselves before capturing, for older Windows versions or unsupported affinity.
-        let _ = SetWindowDisplayAffinity(app.overlay, WDA_EXCLUDEFROMCAPTURE);
+        if !recording_preview {
+            let _ = SetWindowDisplayAffinity(app.overlay, WDA_EXCLUDEFROMCAPTURE);
+        }
         match app.register_hotkey(&app.config.hotkey.clone()) {
             Ok(()) => app.hotkey_active = true,
             Err(error) => app.status = error,
@@ -665,7 +670,12 @@ impl App {
     }
 
     unsafe fn trigger(&mut self) {
-        if self.paused || self.busy || self.editing || !self.settings.is_invalid() {
+        if self.recording_preview
+            || self.paused
+            || self.busy
+            || self.editing
+            || !self.settings.is_invalid()
+        {
             return;
         }
         self.start_worker(None);
@@ -862,13 +872,6 @@ unsafe extern "system" fn overlay_proc(
     match message {
         WM_RBUTTONUP | WM_NCRBUTTONUP if app.editing => {
             app.command(CMD_EDIT);
-            LRESULT(0)
-        }
-        WM_PRINT | WM_PRINTCLIENT => {
-            app.paint();
-            if let Some(renderer) = &app.renderer {
-                renderer.print_to(HDC(wparam.0 as *mut _));
-            }
             LRESULT(0)
         }
         WM_NCCALCSIZE => LRESULT(0),
