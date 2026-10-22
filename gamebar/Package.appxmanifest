@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+ xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
- xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" IgnorableNamespaces="uap uap3">
+ xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" IgnorableNamespaces="uap uap3 mp">
   <Identity Name="BlinkVerdict.GameBar" Publisher="CN=BlinkVerdict" Version="0.1.0.0" />
+  <mp:PhoneIdentity PhoneProductId="c4d91352-d753-4d6c-b903-10b4de8fd600" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties><DisplayName>BlinkVerdict Game Bar</DisplayName><PublisherDisplayName>BlinkVerdict</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
   <Dependencies><TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.19041.0" MaxVersionTested="10.0.19041.0" /></Dependencies>
   <Resources><Resource Language="zh-CN" /><Resource Language="en-US" /></Resources>
