@@ -1,0 +1,33 @@
+name: Windows build and core checks
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Core tests only
+        run: cargo test --locked --lib
+      - name: Build native portable executable
+        run: cargo build --locked --release
+      - name: Package development build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item target/release/blink-verdict.exe, README.md, CHANGELOG.md -Destination dist
+          Copy-Item docs, assets -Destination dist -Recurse
+          Compress-Archive -Path dist/* -DestinationPath blink-verdict-windows-x64-preview.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blink-verdict-windows-x64-preview
+          path: blink-verdict-windows-x64-preview.zip

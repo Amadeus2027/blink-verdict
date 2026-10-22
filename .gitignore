@@ -1,0 +1,12 @@
+/target/
+/dist/
+*.log
+*.pdb
+.env
+config.json
+config.json.tmp
+/gamebar/bin/
+/gamebar/obj/
+/gamebar/AppPackages/
+/gamebar/.vs/
+*.pfx

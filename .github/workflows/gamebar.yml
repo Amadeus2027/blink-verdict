@@ -1,0 +1,18 @@
+name: Optional Game Bar package build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gamebar:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build unsigned development package
+        run: msbuild gamebar/BlinkVerdict.GameBar.csproj /restore /p:Configuration=Debug /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: blink-verdict-gamebar-unsigned-preview
+          path: gamebar/AppPackages/
+          if-no-files-found: error
