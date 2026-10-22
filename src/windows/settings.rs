@@ -32,6 +32,7 @@ pub(super) struct Settings {
     fields: std::collections::BTreeMap<usize, Field>,
     visited: std::collections::BTreeSet<usize>,
     building: bool,
+    choice_labels: std::collections::BTreeMap<usize, Vec<String>>,
 }
 
 pub(super) unsafe fn open(app: &mut App) {
@@ -67,6 +68,7 @@ pub(super) unsafe fn open(app: &mut App) {
         fields: Default::default(),
         visited: Default::default(),
         building: false,
+        choice_labels: Default::default(),
     });
     let instance = GetModuleHandleW(None).unwrap_or_default();
     let hwnd = match CreateWindowExW(
@@ -206,6 +208,10 @@ impl Settings {
         y: i32,
     ) {
         self.label(parent, label, 28, y, 170, 25);
+        self.choice_labels.insert(
+            id,
+            values.iter().map(|value| (*value).to_string()).collect(),
+        );
         let hwnd = self.control(
             parent,
             id,
@@ -786,26 +792,13 @@ impl Settings {
         if nav {
             rect.left += (18.0 * self.scale) as i32;
         }
-        let label = if item.CtlType == ODT_COMBOBOX && item.itemID != u32::MAX {
-            let mut text = vec![
-                0u16;
-                SendMessageW(
-                    item.hwndItem,
-                    CB_GETLBTEXTLEN,
-                    WPARAM(item.itemID as usize),
-                    LPARAM(0)
-                )
-                .0
-                .max(0) as usize
-                    + 1
-            ];
-            SendMessageW(
-                item.hwndItem,
-                CB_GETLBTEXT,
-                WPARAM(item.itemID as usize),
-                LPARAM(text.as_mut_ptr() as isize),
-            );
-            String::from_utf16_lossy(&text[..text.len().saturating_sub(1)])
+        let label = if item.CtlType == ODT_COMBOBOX {
+            // Never query the combo synchronously while Windows is painting that combo.
+            self.choice_labels
+                .get(&id)
+                .and_then(|values| values.get(item.itemID as usize))
+                .cloned()
+                .unwrap_or_default()
         } else {
             let len = GetWindowTextLengthW(item.hwndItem).max(0) as usize;
             let mut text = vec![0u16; len + 1];

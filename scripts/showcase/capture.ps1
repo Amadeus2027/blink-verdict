@@ -29,13 +29,17 @@ $demoData = Join-Path $env:RUNNER_TEMP 'blink-verdict-showcase-data'
 New-Item -ItemType Directory -Force "$demoData/BlinkVerdict" | Out-Null
 @{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); theme=@{font='Noto Sans SC'; widget_duration_ms=0; text_color='D3E8FF'; background_color='18212F'} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
 $env:LOCALAPPDATA = $demoData
-$app = Start-Process -FilePath (Resolve-Path $Executable) -PassThru
+$env:RUST_BACKTRACE = '1'
+$app = Start-Process -FilePath (Resolve-Path $Executable) -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
 function Send-Command([IntPtr]$Window,[int]$Id) { [void][NativeDemo]::SendMessage($Window,0x111,[IntPtr]$Id,[IntPtr]::Zero) }
 function Set-Text([IntPtr]$Window,[int]$Id,[string]$Text) { [void][NativeDemo]::TextMessage([NativeDemo]::GetDlgItem($Window,$Id),0xC,[IntPtr]::Zero,$Text) }
 function Capture([IntPtr]$Window,[string]$Name) {
+ Write-Host "Capturing $Name"
  $rect = New-Object NativeDemo+Rect
  if (-not [NativeDemo]::GetWindowRect($Window,[ref]$rect)) {
   $app.Refresh()
+  Get-Content "$Output/native-stderr.log" -ErrorAction SilentlyContinue | Write-Host
+  Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
