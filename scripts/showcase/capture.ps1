@@ -9,6 +9,14 @@ public static class NativeDemo {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
  public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
+ [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hwnd,IntPtr dc);
+ [DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr target,int x,int y,int width,int height,IntPtr source,int sx,int sy,uint operation);
+ public static bool CaptureDesktop(IntPtr target,int x,int y,int width,int height) {
+  var screen=GetDC(IntPtr.Zero);
+  try { return screen!=IntPtr.Zero && BitBlt(target,0,0,width,height,screen,x,y,0x40CC0020); }
+  finally { if(screen!=IntPtr.Zero)ReleaseDC(IntPtr.Zero,screen); }
+ }
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd,int id);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
@@ -61,10 +69,9 @@ function Capture([IntPtr]$Window,[string]$Name) {
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
  $captured = $false
  if ($Name -like 'widget-*' -or [NativeDemo]::GetForegroundWindow() -eq $Window) {
-  try {
-   $graphics.CopyFromScreen($rect.Left,$rect.Top,0,0,$bitmap.Size,[System.Drawing.CopyPixelOperation]::SourceCopy)
-   $captured = $true
-  } catch { Write-Host 'Desktop composition unavailable; using native PrintWindow.' }
+  $desktopDc=$graphics.GetHdc()
+  try { $captured=[NativeDemo]::CaptureDesktop($desktopDc,$rect.Left,$rect.Top,$bitmap.Width,$bitmap.Height) }
+  finally { $graphics.ReleaseHdc($desktopDc) }
  }
  if (-not $captured) {
   $dc = $graphics.GetHdc()
