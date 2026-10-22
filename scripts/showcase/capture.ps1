@@ -12,7 +12,7 @@ public static class NativeDemo {
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd,int id);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr TextMessage(IntPtr hwnd,uint msg,IntPtr wp,string text);
- [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hwnd,StringBuilder value,int count);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr ReadTextMessage(IntPtr hwnd,uint msg,IntPtr count,[Out] StringBuilder value);
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd,out Rect rect);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd,IntPtr dc,uint flags);
  [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int cx,int cy,uint flags);
@@ -74,11 +74,11 @@ try {
  Set-Text $settings 314 'showcase-not-a-real-api-key'
  Set-Text $settings 312 'http://127.0.0.1:8000/v1'
  $keyValue=New-Object System.Text.StringBuilder 100
- [void][NativeDemo]::GetWindowText([NativeDemo]::GetDlgItem($settings,314),$keyValue,100)
+ [void][NativeDemo]::ReadTextMessage([NativeDemo]::GetDlgItem($settings,314),0xD,[IntPtr]100,$keyValue)
  if ($keyValue.Length -ne 0) {throw 'Changing endpoint retained an unsaved key.'}
  Send-Command $settings 210
  $value=New-Object System.Text.StringBuilder 100
- [void][NativeDemo]::GetWindowText([NativeDemo]::GetDlgItem($settings,301),$value,100)
+ [void][NativeDemo]::ReadTextMessage([NativeDemo]::GetDlgItem($settings,301),0xD,[IntPtr]100,$value)
  if ($value.ToString() -ne 'Ctrl+') {throw 'Page navigation lost the unfinished shortcut.'}
  # Preview must remain available despite unfinished model/shortcut fields.
  Send-Command $settings 212
