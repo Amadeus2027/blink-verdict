@@ -93,6 +93,12 @@ pub(super) unsafe fn open(app: &mut App) {
         }
     };
     app.settings = hwnd;
+    SendMessageW(
+        hwnd,
+        WM_CHANGEUISTATE,
+        WPARAM(UIS_SET as usize | ((UISF_HIDEFOCUS as usize) << 16)),
+        LPARAM(0),
+    );
     SetWindowLongPtrW(hwnd, GWLP_USERDATA, app as *mut App as isize);
     app.settings_ui.as_mut().unwrap().style.attach(hwnd);
     app.settings_ui.as_mut().unwrap().build(hwnd);
@@ -668,12 +674,14 @@ impl Settings {
     unsafe fn paint_background(&self, hwnd: HWND, dc: HDC) {
         let mut all = RECT::default();
         let _ = GetClientRect(hwnd, &mut all);
+        FillRect(dc, &all, self.style.background);
         if self.style.glass {
-            FillRect(dc, &all, HBRUSH(GetStockObject(BLACK_BRUSH).0));
+            FillRect(
+                dc,
+                &self.rect(0, 0, 200, 670),
+                HBRUSH(GetStockObject(BLACK_BRUSH).0),
+            );
         } else {
-            FillRect(dc, &all, self.style.background);
-        }
-        if !self.style.glass {
             visual::rounded(
                 dc,
                 self.rect(8, 8, 184, 644),
@@ -777,17 +785,32 @@ impl Settings {
         } else {
             visual::FIELD
         };
-        visual::rounded(
-            item.hDC,
-            item.rcItem,
-            fill,
-            if selected || primary {
-                visual::ACCENT
+        if nav && !selected && !pressed {
+            let background = if self.style.glass {
+                COLORREF(0)
             } else {
-                COLORREF(0x0044372D)
-            },
-            (20.0 * self.scale) as i32,
-        );
+                visual::SIDEBAR
+            };
+            visual::rounded(
+                item.hDC,
+                item.rcItem,
+                background,
+                background,
+                (20.0 * self.scale) as i32,
+            );
+        } else {
+            visual::rounded(
+                item.hDC,
+                item.rcItem,
+                fill,
+                if selected || primary {
+                    visual::ACCENT
+                } else {
+                    COLORREF(0x0044372D)
+                },
+                (20.0 * self.scale) as i32,
+            );
+        }
         let mut rect = item.rcItem;
         if nav {
             rect.left += (18.0 * self.scale) as i32;
@@ -831,7 +854,7 @@ impl Settings {
                     DT_CENTER
                 },
         );
-        if item.itemState.0 & ODS_FOCUS.0 != 0 {
+        if item.itemState.0 & ODS_FOCUS.0 != 0 && item.itemState.0 & ODS_NOFOCUSRECT.0 == 0 {
             let mut focus = item.rcItem;
             let _ = InflateRect(&mut focus, -4, -4);
             let _ = DrawFocusRect(item.hDC, &focus);

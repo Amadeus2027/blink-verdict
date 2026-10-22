@@ -9,6 +9,7 @@ public static class NativeDemo {
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left,Top,Right,Bottom; }
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
  public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
+ [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd,int id);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
  [DllImport("user32.dll",CharSet=CharSet.Unicode,EntryPoint="SendMessageW")] public static extern IntPtr TextMessage(IntPtr hwnd,uint msg,IntPtr wp,string text);
@@ -44,10 +45,19 @@ function Capture([IntPtr]$Window,[string]$Name) {
  }
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
- $dc = $graphics.GetHdc()
- try {
-  if (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" }
- } finally { $graphics.ReleaseHdc($dc); $graphics.Dispose() }
+ $captured = $false
+ if ($Name -notlike 'widget-*' -and [NativeDemo]::GetForegroundWindow() -eq $Window) {
+  try {
+   $graphics.CopyFromScreen($rect.Left,$rect.Top,0,0,$bitmap.Size,[System.Drawing.CopyPixelOperation]::SourceCopy)
+   $captured = $true
+  } catch { Write-Host 'Desktop composition unavailable; using native PrintWindow.' }
+ }
+ if (-not $captured) {
+  $dc = $graphics.GetHdc()
+  try { if (-not [NativeDemo]::PrintWindow($Window,$dc,2)) { throw "PrintWindow failed: $Name" } }
+  finally { $graphics.ReleaseHdc($dc) }
+ }
+ $graphics.Dispose()
  $bitmap.Save((Join-Path $Output "$Name.png"),[System.Drawing.Imaging.ImageFormat]::Png)
  $bitmap.Dispose()
 }
@@ -103,7 +113,7 @@ try {
    kind='Windows native application capture, editorial presentation';
    source_commit=$env:GITHUB_SHA; os=[Environment]::OSVersion.VersionString;
    font='Noto Sans SC (downloaded for capture only; not shipped with the application)';
-   capture='Win32 PrintWindow; composited desktop blur is not guaranteed in offscreen capture';
+   capture='Foreground desktop crop where available; Win32 PrintWindow fallback and native overlay frames. Composited blur depends on capture path.';
    provider_requests=0; credentials_used=$false;
    checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM

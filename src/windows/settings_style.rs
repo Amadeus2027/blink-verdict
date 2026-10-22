@@ -17,6 +17,7 @@ pub struct Style {
     pub background: HBRUSH,
     pub field: HBRUSH,
     pub glass: bool,
+    glass_width: i32,
 }
 impl Drop for Style {
     fn drop(&mut self) {
@@ -58,6 +59,7 @@ impl Style {
             background: CreateSolidBrush(BACKGROUND),
             field: CreateSolidBrush(FIELD),
             glass: false,
+            glass_width: (200.0 * scale) as i32,
         }
     }
     pub unsafe fn attach(&mut self, hwnd: HWND) {
@@ -87,10 +89,10 @@ impl Style {
             self.glass = DwmExtendFrameIntoClientArea(
                 hwnd,
                 &MARGINS {
-                    cxLeftWidth: -1,
-                    cxRightWidth: -1,
-                    cyTopHeight: -1,
-                    cyBottomHeight: -1,
+                    cxLeftWidth: self.glass_width,
+                    cxRightWidth: 0,
+                    cyTopHeight: 0,
+                    cyBottomHeight: 0,
                 },
             )
             .is_ok();
