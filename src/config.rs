@@ -31,6 +31,11 @@ pub enum DisplayMode {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub enum Provider {
     #[default]
+    Jev,
+    SystemOne,
+    Decider,
+    Clef,
+    OpenAiDecisions,
     OpenAi,
     OpenAiResponses,
     Anthropic,
@@ -39,8 +44,23 @@ pub enum Provider {
 }
 
 impl Provider {
+    pub fn is_decision(self) -> bool {
+        matches!(
+            self,
+            Self::Jev | Self::SystemOne | Self::Decider | Self::Clef | Self::OpenAiDecisions
+        )
+    }
+
     pub fn defaults(self) -> (&'static str, &'static str) {
         match self {
+            Self::Jev => ("https://api.typesafe.ai/v1", "jev-latest"),
+            Self::SystemOne => ("http://127.0.0.1:8000/v1", "local-decision-model"),
+            Self::Decider => ("https://api.perplexity.ai/v1", "pplx-decider-latest"),
+            Self::Clef => (
+                "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/run",
+                "clef",
+            ),
+            Self::OpenAiDecisions => ("https://api.openai.com/v1", "gpt-6-luna"),
             Self::OpenAi => ("https://api.openai.com/v1", "gpt-4o-mini"),
             Self::OpenAiResponses => ("https://api.openai.com/v1", "gpt-4o-mini"),
             Self::Anthropic => ("https://api.anthropic.com/v1", "claude-sonnet-4-20250514"),
@@ -111,14 +131,14 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        let (endpoint, model) = Provider::OpenAi.defaults();
+        let (endpoint, model) = Provider::Jev.defaults();
         Self {
             mode: DisplayMode::Fullscreen,
             hotkey: "Ctrl+Alt+Space".into(),
             prompt: "根据当前屏幕和可选答案判断最合适的选择。若无法明确判断用户的目标，或证据不足，返回无法判断。".into(),
             options: vec!["YES".into(), "NO".into()],
             option_images: BTreeMap::new(),
-            provider: Provider::OpenAi,
+            provider: Provider::Jev,
             endpoint: endpoint.into(),
             model: model.into(),
             vision: true,
@@ -213,8 +233,14 @@ mod tests {
         let mut c = Config::default();
         assert!(c.validate().is_ok());
         c.options = vec!["进攻".into(), "撤退".into(), "等待".into()];
+        c.widget_x = -1920;
+        c.widget_width = 600;
         let copy: Config = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
         assert_eq!(copy.options, c.options);
+        assert_eq!((copy.widget_x, copy.widget_width), (-1920, 600));
+        let legacy: Config = serde_json::from_value(serde_json::json!({"provider":"OpenAi","endpoint":"https://api.openai.com/v1","model":"gpt-4o-mini"})).unwrap();
+        assert_eq!(legacy.provider, Provider::OpenAi);
+        assert!(legacy.validate().is_ok());
         assert!(copy.validate().is_ok());
         c.options.push("等待".into());
         assert!(c.validate().is_err());

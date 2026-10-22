@@ -7,7 +7,7 @@
 ## Automated
 
 - [ ] Format and native release build
-- [ ] Four core tests
+- [ ] Core tests: five on Windows (four groups plus native PNG)
 - [ ] Three ignored release network regressions
 - [ ] Optional Game Bar build/package (or explicitly not distributed)
 
@@ -16,7 +16,7 @@
 - [ ] Complete the matrix in `docs/testing.md`; attach results and exceptions
 - [ ] Both modes preserve foreground HWND, keyboard and mouse
 - [ ] Three word-art styles, custom PNG and five animation choices
-- [ ] Model vision/OCR smoke tests; credentials and failure behavior
+- [ ] Hosted / local decision and chat model vision/OCR smoke tests; probabilities, credentials and failure behavior
 - [ ] Multi-monitor/DPI, widget move/resize and auto-hide
 - [ ] Game/version/display-mode results added to `docs/compatibility.md`
 - [ ] 60-second footprint sample fresh and after repeated use

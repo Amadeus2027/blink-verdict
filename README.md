@@ -37,14 +37,14 @@
 - 字体、颜色、整体不透明度、动画可调整；字号和显示时长分别设置。
 - 动画可选 **无动画 / 渐入渐出 / 闪现 / 缩放弹入 / 上浮进入**，文字与字效图片均可使用。
 - 内置三组 AI 生成的 `YES / NO` 字效：血墨书法（只狼灵感）、酸黄故障（《赛博朋克 2077》灵感）、霓虹涂鸦（迈阿密灵感）。在“字效”页选择；自定义答案可绑定自己的透明 PNG。
-- 悬浮保留时长设为 `0` 可一直显示。默认点击穿透，从托盘进入编辑状态后再拖动或缩放。
+- 悬浮保留时长设为 `0` 可一直显示。默认点击穿透；“浮窗”页可填写 X/Y、宽高及恢复默认，也可从托盘进入编辑状态后拖动或缩放。
 - 显示层使用不激活窗口，不主动切换焦点，不拦截游戏键鼠输入；游戏中的实际行为仍需验证。
 
 ## 快速开始
 
 ### 1. 获取 Windows 程序
 
-在 [Actions](https://github.com/Amadeus2027/blink-verdict/actions/workflows/check.yml) 中打开一次成功的 **Windows build and core checks**，下载 `blink-verdict-windows-x64-preview` 构建产物，解压其中的 ZIP，再解压运行 `blink-verdict.exe`。构建产物需要登录 GitHub 下载，并有保存期限。
+在 [Actions](https://github.com/Amadeus2027/blink-verdict/actions/workflows/check.yml) 中打开一次成功的 **Windows build and core checks**，下载 `blink-verdict-windows-x64-preview` 构建产物，解压其中的 ZIP，再解压运行 `blink-verdict.exe`。构建产物需要登录 GitHub 下载，并有保存期限。程序是单文件 EXE，内置字效已嵌入，不需要额外复制素材目录。
 
 也可以在 Windows 安装 [Rust](https://rustup.rs/) 和 Visual Studio C++ Build Tools 后从源码构建：
 
@@ -59,7 +59,7 @@ cargo build --locked --release
 
 ### 2. 设置模型与判断任务
 
-在“模型”页选择服务预设，点“填入选中预设”，填写自己的模型名称与 API 密钥，并选择截图输入或 OCR 输入。密钥留空保留当前地址已有密钥；通过“删除此地址的密钥”显式删除。
+在“模型”页选择专用决策模型或常规模型服务预设，点“填入选中预设”，填写实际模型名、地址及需要的 API 密钥，并选择截图输入或 OCR 输入。新安装默认选择 TypeSafe Jev，已有配置保留原协议和地址。本地决策服务也有独立预设，需要自行启动相应服务。密钥留空保留当前地址已有密钥；通过“删除此地址的密钥”显式删除。
 
 在“决策”页填写目标，以及每行一个的答案：
 
@@ -79,7 +79,7 @@ cargo build --locked --release
 默认 **`Ctrl + Alt + Space`**：
 
 ```text
-触发 → 截取当前屏幕 → 视觉模型 / 本机 OCR + 文字模型 → 选择答案 → 显示 → 隐身
+触发 → 截取当前屏幕 → 专用决策模型 / 常规模型 → 选择答案 → 显示 → 隐身
 ```
 
 截图先于“判断中”组件出现，避免将自身结果作为输入。处理期间重复按键不排队；设置或窗口编辑期间暂停响应决策快捷键。错误只留在托盘状态中，可从“查看状态 / 最近错误”读取。
@@ -105,7 +105,7 @@ cargo build --locked --release
 
 在“字效”页选中答案后，可选择本机 PNG，覆盖该答案的默认字效。图片按比例缩放，保留透明通道，共用选择的动画。原生通道支持不超过 8 MB、4096×4096 的 PNG；Game Bar 自定义图须不超过 32 KB。文件路径保存在配置中，移动文件后需要重新选择。
 
-字效只在结果显示时解码和加载，隐身时释放渲染资源；不会为用户每次触发在线生成图片。
+字效只在结果显示时解码和加载，内置图集只复制当前答案的像素区域，隐身时释放渲染资源；不会为用户每次触发在线生成图片。
 
 </details>
 
@@ -113,21 +113,28 @@ cargo build --locked --release
 
 | 接口 | 云端 / 本机 | 屏幕输入 |
 |---|---|---|
+| TypeSafe Jev · `/systemone` | TypeSafe API；或实现同一协议的本地服务 | OCR；图片为厂商实验能力 |
+| Perplexity Decider · `/decisions` | Perplexity API；或实现同一协议的本地服务 | 图片或 OCR，取决于服务版本 |
+| Cloudflare Clef · Workers AI | Cloudflare API，地址中填写 Account ID | 图片或 OCR |
+| OpenAI Decisions · `/decisions` | OpenAI API；或实现此协议的本地服务 | 云端图片 / OCR；vLLM 当前仅文字 |
+| 本地 System One · `/systemone` | vLLM 等，包含 `images` 图片扩展 | 图片或 OCR，取决于模型 / 服务 |
 | OpenAI 兼容 Chat Completions | OpenAI、Qwen、SiliconFlow、OpenRouter、LM Studio 等 | 视觉模型用图片；文字模型用 OCR |
 | OpenAI Responses | OpenAI 及兼容此协议的服务 | 图片或 OCR |
 | Anthropic Messages | Anthropic 或兼容服务 | 图片或 OCR |
 | Gemini generateContent | Google 或兼容服务 | 图片或 OCR |
 | Ollama `/api/chat` | 已运行的本机服务 | 已安装的视觉模型或文字模型 |
 
-内置上述常见服务预设及 DeepSeek 文字模型预设。**预设是配置起点，不是对模型可用性或能力的保证**；可以自行修改 API 基础地址和模型名。基础地址填到版本路径，例如 `https://api.openai.com/v1`，不要加 `/chat/completions`。
+**专用决策接口发送结构化选项，并直接读取 choice、选项概率和置信度；常规模型继续使用 JSON 答案约束。** 托盘“查看状态 / 最近错误”可查看服务返回的概率和置信度。所有选项之外增加“无法判断”，不将低置信度数值自动等同于错误，也不将置信度视为正确率保证。
+
+本地与云端均可修改基础地址、模型名和密钥；本地无认证时密钥可留空。**模型权重名称不代表接口协议**：本地 Clef 等服务通常应选择 System One，不能直接套用 Cloudflare 云端路径。预设是配置起点，不代表已经安装模型或验证了真实服务。[协议、地址填写和本地接入说明](docs/models.md)
 
 <details>
 <summary>本地模型、推理模型与接口限制</summary>
 
-- Ollama / LM Studio 需要用户自行安装、启动和下载模型。主程序不内置模型，也不在后台自动启动模型服务。
+- 本地决策服务、Ollama / LM Studio 需要用户自行安装、启动和下载模型。主程序不内置模型，也不在后台自动启动模型服务。
 - Ollama 请求使用 `keep_alive: 0` 请求服务在本次推理结束后卸载模型，实际释放由服务决定。模型运行期间的内存 / 显存另计。
 - OCR 使用 Windows 已安装的用户语言包，适合文字界面，不能代替视觉模型理解图形、空间关系或完整游戏场景。
-- 默认模型网络请求超时 15 秒，可设为 1–120 秒；默认最大输出 1024 tokens，可设为 64–8192。OCR 和可选 IPC 耗时另计。
+- 默认模型网络请求超时 15 秒，可设为 1–120 秒；常规模型默认最大输出 1024 tokens，可设为 64–8192；专用决策不发送输出 token 参数。OCR 和可选 IPC 耗时另计。
 - 某些推理模型需要更大的输出额度或不同接口；例如不支持 Chat Completions `max_tokens` 的模型应使用 Responses。厂商私有参数和非兼容协议不保证支持。
 - 接口要求 HTTPS，只有本机回环地址允许 HTTP；不跟随重定向，不将服务原始错误内容写入日志或通知。
 - 截图输入与 OCR 输入由用户明确选择，不自动将不支持图片的模型降级。
@@ -147,7 +154,7 @@ cargo build --locked --release
 
 ## 低占用目标
 
-原生 Rust + Win32 + Direct2D / DirectWrite，不依赖 Electron 或 WebView。设置窗口按需创建；隐身时释放渲染资源、停止动画计时器；不持续截图、轮询模型或执行 OCR。
+原生 Rust + Win32 + Direct2D / DirectWrite，不依赖 Electron 或 WebView。网络使用 Windows WinHTTP，PNG 使用 Windows Imaging Component，不携带异步网络运行时或第三方 PNG 编解码器。设置窗口按需创建；隐身时释放渲染资源、停止动画计时器；不持续截图、轮询模型或执行 OCR。
 
 隐身待命目标为私有工作集 **≤ 30 MB**、60 秒平均 CPU **< 0.1%**。这是待测目标，尚无 Windows 性能数据；可选组件和本地模型占用单独记录。[性能采样与发行清单](docs/testing.md)
 
@@ -156,7 +163,7 @@ cargo build --locked --release
 遵守 [Andrej Karpathy Skills](https://github.com/forrestchang/andrej-karpathy-skills)：明确假设、保持简单、只改必要内容、验证关键行为。具体约定见 [AGENTS.md](AGENTS.md)。README 的组织与视觉呈现参考 [archify](https://github.com/tt-a1i/archify)，素材和产品说明独立维护。
 
 ```powershell
-# 日常：只运行四个核心测试，以及必要编译检查
+# 日常：核心四组；Windows 另加一项原生 PNG 冒烟，以及必要编译检查
 cargo test --locked --lib
 cargo check --locked
 

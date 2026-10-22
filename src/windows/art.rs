@@ -1,5 +1,8 @@
-use blink_verdict::config::{ArtStyle, Config};
-use std::io::Cursor;
+use blink_verdict::{
+    config::{ArtStyle, Config},
+    imaging::decode_png,
+};
+use std::borrow::Cow;
 
 pub struct Art {
     pub width: u32,
@@ -8,53 +11,32 @@ pub struct Art {
     pub source: [f32; 4],
 }
 
-/// Decode only while a result is visible; the renderer owns and releases the GPU bitmap.
+/// Decode only while a result is visible; no full-atlas pixel buffer or embedded PNG copy.
 pub fn load(config: &Config, text: &str) -> Option<Art> {
     let custom = config.option_images.get(text);
-    let bytes = if let Some(path) = custom {
-        if std::fs::metadata(path).ok()?.len() > 8 * 1024 * 1024 {
+    let bytes: Cow<'_, [u8]> = if let Some(path) = custom {
+        // Limit the actual read too, in case the file changes after inspecting its metadata.
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        std::fs::File::open(path)
+            .ok()?
+            .take(8 * 1024 * 1024 + 1)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        if bytes.len() > 8 * 1024 * 1024 {
             return None;
         }
-        std::fs::read(path).ok()?
+        Cow::Owned(bytes)
     } else {
         if config.theme.art_style == ArtStyle::Plain
-            || !["YES", "NO"].contains(&text.to_ascii_uppercase().as_str())
+            || !(text.eq_ignore_ascii_case("YES") || text.eq_ignore_ascii_case("NO"))
         {
             return None;
         }
-        include_bytes!("../../assets/wordart.png").to_vec()
+        Cow::Borrowed(include_bytes!("../../assets/wordart.png"))
     };
-    let mut decoder = png::Decoder::new(Cursor::new(bytes));
-    decoder.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
-    let mut reader = decoder.read_info().ok()?;
-    if reader.info().width > 4096
-        || reader.info().height > 4096
-        || reader.output_buffer_size() > 64 * 1024 * 1024
-    {
-        return None;
-    }
-    let mut buffer = vec![0; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut buffer).ok()?;
-    let channels = match info.color_type {
-        png::ColorType::Rgba => 4,
-        png::ColorType::Rgb => 3,
-        png::ColorType::GrayscaleAlpha => 2,
-        png::ColorType::Grayscale => 1,
-        _ => return None,
-    };
-    let mut bgra = Vec::with_capacity((info.width * info.height * 4) as usize);
-    for pixel in buffer[..info.buffer_size()].chunks_exact(channels) {
-        let (r, g, b, a) = match channels {
-            4 => (pixel[0], pixel[1], pixel[2], pixel[3]),
-            3 => (pixel[0], pixel[1], pixel[2], 255),
-            2 => (pixel[0], pixel[0], pixel[0], pixel[1]),
-            _ => (pixel[0], pixel[0], pixel[0], 255),
-        };
-        let premultiply = |v: u8| ((v as u16 * a as u16 + 127) / 255) as u8;
-        bgra.extend_from_slice(&[premultiply(b), premultiply(g), premultiply(r), a]);
-    }
-    let source = if custom.is_some() {
-        [0.0, 0.0, info.width as f32, info.height as f32]
+    let cell = if custom.is_some() {
+        None
     } else {
         let column = match config.theme.art_style {
             ArtStyle::Ink => 0,
@@ -62,24 +44,20 @@ pub fn load(config: &Config, text: &str) -> Option<Art> {
             ArtStyle::Graffiti => 2,
             ArtStyle::Plain => return None,
         };
-        let row = if text.eq_ignore_ascii_case("YES") {
-            0
-        } else {
-            1
-        };
-        let w = info.width as f32 / 3.0;
-        let h = info.height as f32 / 2.0;
-        [
-            column as f32 * w,
-            row as f32 * h,
-            (column + 1) as f32 * w,
-            (row + 1) as f32 * h,
-        ]
+        Some((
+            column,
+            if text.eq_ignore_ascii_case("YES") {
+                0
+            } else {
+                1
+            },
+        ))
     };
+    let pixels = decode_png(&bytes, cell).ok()?;
     Some(Art {
-        width: info.width,
-        height: info.height,
-        bgra,
-        source,
+        width: pixels.width,
+        height: pixels.height,
+        source: [0.0, 0.0, pixels.width as f32, pixels.height as f32],
+        bgra: pixels.bgra,
     })
 }
