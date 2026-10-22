@@ -1,17 +1,17 @@
 {
+  "recording_mode": "--recordable-preview permits recording and disables decision triggers",
   "credentials_used": false,
+  "font": "Noto Sans CJK SC (downloaded for capture only; not shipped with the application)",
+  "os": "Microsoft Windows NT 10.0.26100.0",
   "capture": "Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic solid stage behind the overlay.",
+  "provider_requests": 0,
+  "kind": "Windows native application capture, editorial presentation",
   "checks": [
     "unfinished field survives page navigation",
     "preview does not save draft mode",
     "changing endpoint clears unsaved key",
     "native overlay preview visible and nonblank"
   ],
-  "os": "Microsoft Windows NT 10.0.26100.0",
-  "font": "Noto Sans SC (downloaded for capture only; not shipped with the application)",
-  "source_commit": "b540d8fe053ff9b7bb26e40e33fe6f9e4eb2ff88",
-  "kind": "Windows native application capture, editorial presentation",
-  "recording_mode": "--recordable-preview permits recording and disables decision triggers",
-  "provider_requests": 0,
+  "source_commit": "4f0ca38a5be76a22f2f80cf8372ecb6ae1e14cfe",
   "editing": "Native window captures; editorial titles, scaling, fades and cuts; 12 fps GIF. Sample YES from the built-in preview; no model request."
 }
