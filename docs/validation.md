@@ -2,6 +2,16 @@
 
 Updated: 2026-10-23. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
 
+## Settings persistence and llama.cpp follow-up
+
+Source: `fcc8014` ([PR #9](https://github.com/Amadeus2027/blink-verdict/pull/9)). Fixed About-page Game Bar retention and rollback of edited credentials if config persistence fails. Added a dedicated llama-server preset with native JSON Schema choice constraints, kept all existing adapters, and changed Ollama to service-controlled residency with optional unloading. No runtime dependency or idle polling was added.
+
+Linux: four existing library groups pass; Windows-GNU all-target Clippy passes (only the existing native-control argument-count and fixed-pixel chunk style allowances). Existing provider/config groups cover llama.cpp route, schema choices, text/image request construction, result mapping, Ollama residency choices and legacy defaults. Cross-compilation does not execute Windows behavior or real inference.
+
+[Focused Windows run](https://github.com/Amadeus2027/blink-verdict/actions/runs/39993429530), `windows-2022`: five existing library groups and both targeted native regressions passed. The hidden native controls retained the About/Game Bar configuration, Ollama selection and llama.cpp preset through navigation/cache/save. Real Windows Credential Manager tests covered replace/delete/unchanged key, another endpoint, absent old key and successful persistence; a Windows file-sharing lock forced the configuration-save failures while the original file remained unchanged. Only isolated synthetic credentials were used and cleaned up. No broad release, performance, game or real-model suite was rerun.
+
+The old RC1 ZIP is held from publication, its hashes/evidence retained unchanged; these source fixes are not present in that artifact. Actual user llama.cpp model weights and response latency remain unverified.
+
 ## Performed locally
 
 Environment: Linux, Rust stable, x86_64-pc-windows-gnu standard library.
