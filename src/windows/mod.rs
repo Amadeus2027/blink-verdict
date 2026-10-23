@@ -2,6 +2,7 @@ mod art;
 mod capture;
 mod credentials;
 mod gamebar;
+mod glass;
 mod hotkey;
 mod render;
 mod settings;
@@ -22,7 +23,12 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
-        System::{Com::*, LibraryLoader::GetModuleHandleW, Threading::*, WinRT::*},
+        System::{
+            Com::*,
+            LibraryLoader::{GetModuleHandleW, GetProcAddress},
+            Threading::*,
+            WinRT::*,
+        },
         UI::{HiDpi::*, Input::KeyboardAndMouse::*, Shell::*, WindowsAndMessaging::*},
     },
 };
@@ -95,7 +101,7 @@ pub fn run() {
         let recording_preview = std::env::args_os().any(|arg| arg == "--recordable-preview");
         let first_run = !path.exists();
         let (config, status) = match Config::load(&path) {
-            Ok(c) => (c, "待命；请先通过托盘设置模型与判断任务".into()),
+            Ok(c) => (c, "欢迎使用，先连接模型，再设置你的决策".into()),
             Err(error) => (Config::default(), error),
         };
         let instance = GetModuleHandleW(None).unwrap_or_default();
@@ -255,7 +261,7 @@ impl App {
             return;
         };
         for (id, title, checked) in [
-            (CMD_SETTINGS, "设置…", false),
+            (CMD_SETTINGS, "打开设置", false),
             (
                 CMD_FULLSCREEN,
                 "全屏浮现",
@@ -263,30 +269,30 @@ impl App {
             ),
             (
                 CMD_WIDGET,
-                "悬浮窗口",
+                "悬浮组件",
                 self.config.mode == DisplayMode::Widget,
             ),
             (
                 CMD_EDIT,
                 if self.editing {
-                    "锁定悬浮窗口"
+                    "完成布局调整"
                 } else {
-                    "编辑悬浮窗口位置 / 大小"
+                    "调整浮窗位置与大小"
                 },
                 self.editing,
             ),
-            (CMD_PREVIEW, "预览当前效果（不截图）", false),
-            (CMD_HIDE, "收起当前显示（下次按键再显示）", false),
+            (CMD_PREVIEW, "预览效果", false),
+            (CMD_HIDE, "收起浮窗", false),
             (
                 CMD_PAUSE,
                 if self.paused {
-                    "恢复决策快捷键"
+                    "继续决策"
                 } else {
-                    "暂停决策快捷键"
+                    "暂停决策"
                 },
                 self.paused,
             ),
-            (CMD_STATUS, "查看状态 / 最近错误…", false),
+            (CMD_STATUS, "状态与连接信息", false),
             (CMD_EXIT, "退出", false),
         ] {
             let text = wide(title);
@@ -385,7 +391,7 @@ impl App {
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                     );
                     self.show(
-                        "拖动调整 · 右键完成".into(),
+                        "拖动到喜欢的位置".into(),
                         capture::foreground_rect(),
                         None,
                         false,
@@ -424,7 +430,7 @@ impl App {
                         Ok(()) => {
                             self.paused = false;
                             self.hotkey_active = true;
-                            self.set_status("快捷键已恢复，等待决策".into());
+                            self.set_status("已恢复，按下快捷键即可开始".into());
                             self.restore_widget();
                         }
                         Err(error) => self.set_status(error),
@@ -436,7 +442,7 @@ impl App {
                     self.clear_gamebar();
                     self.lock_widget();
                     self.hide();
-                    self.set_status("快捷键已暂停；从托盘恢复".into());
+                    self.set_status("已暂停，可从托盘继续".into());
                 }
             }
             CMD_STATUS => {
@@ -504,6 +510,7 @@ impl App {
         self.visible = false;
         self.expires_at = None;
         self.renderer = None;
+        glass::set(self.overlay, false);
         self.presentation = None;
     }
 
@@ -521,7 +528,7 @@ impl App {
             && self.settings.is_invalid()
         {
             self.show(
-                "等待决策".into(),
+                "等待你的下一次按键".into(),
                 capture::foreground_rect(),
                 None,
                 false,
@@ -698,7 +705,7 @@ impl App {
         };
         self.busy = true;
         self.capture_rect = rect;
-        self.set_status("判断中…".into());
+        self.set_status("正在思考…".into());
         let (sender, receiver) = mpsc::channel();
         self.receiver = Some(receiver);
         let host = self.host.0 as isize;
@@ -723,7 +730,7 @@ impl App {
                 let observation = capture::observe(rect, config.vision)?;
                 if config.mode == DisplayMode::Widget {
                     if let Some(bridge) = &bridge {
-                        bridge.send(&config, "processing", "判断中…", rect)?;
+                        bridge.send(&config, "processing", "正在思考…", rect)?;
                     } else {
                         let _ = sender.send(WorkerEvent::Captured);
                         let _ =
@@ -783,7 +790,7 @@ impl App {
         for event in events {
             match event {
                 WorkerEvent::Captured => {
-                    self.show("判断中…".into(), self.capture_rect, None, false, None)
+                    self.show("正在思考…".into(), self.capture_rect, None, false, None)
                 }
                 WorkerEvent::Finished(result) => {
                     self.busy = false;

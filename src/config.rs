@@ -94,9 +94,9 @@ impl Default for Theme {
         Self {
             art_style: ArtStyle::Plain,
             font: "Microsoft YaHei UI".into(),
-            text_color: "D95C54".into(),
-            background_color: "111318".into(),
-            opacity: 210,
+            text_color: "1D1D1F".into(),
+            background_color: "F4F4F7".into(),
+            opacity: 244,
             fullscreen_font_size: 150,
             widget_font_size: 32,
             fullscreen_duration_ms: 1500,

@@ -111,7 +111,8 @@ jobs:
             sudo apt-get -o Acquire::Retries=1 -o Acquire::https::Timeout=20 update -qq
             sudo apt-get -o Acquire::Retries=1 -o Acquire::https::Timeout=20 install -y --no-install-recommends ffmpeg
           fi
-          python3 scripts/showcase/render.py showcase-frames showcase-edit
+          curl --fail --location --retry 2 'https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf' --output "$RUNNER_TEMP/showcase-font.otf"
+          python3 scripts/showcase/render.py showcase-frames showcase-edit "$RUNNER_TEMP/showcase-font.otf"
       - uses: actions/upload-artifact@v4
         with:
           name: native-ui-showcase-video

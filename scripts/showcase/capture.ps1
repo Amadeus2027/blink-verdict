@@ -50,7 +50,7 @@ if ([NativeDemo]::AddFontResourceEx($font,0,[IntPtr]::Zero) -eq 0) { throw 'Coul
 # Isolated synthetic preferences. No credentials, screenshots, provider or model calls.
 $demoData = Join-Path $env:RUNNER_TEMP 'blink-verdict-showcase-data'
 New-Item -ItemType Directory -Force "$demoData/BlinkVerdict" | Out-Null
-@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); theme=@{font='Noto Sans CJK SC'; widget_duration_ms=0; text_color='D3E8FF'; background_color='18212F'} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
+@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); widget_x=([int]([NativeDemo]::GetSystemMetrics(0)/2)-200); widget_y=([int]([NativeDemo]::GetSystemMetrics(1)/2)-90); widget_width=400; widget_height=180; theme=@{font='Noto Sans CJK SC'; widget_duration_ms=0; text_color='1D1D1F'; background_color='F4F4F7'; opacity=244} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
 $env:LOCALAPPDATA = $demoData
 $env:RUST_BACKTRACE = '1'
 $app = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--recordable-preview' -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
@@ -65,14 +65,15 @@ function Capture([IntPtr]$Window,[string]$Name) {
   Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
- if ($Name -notlike 'widget-*') {
+ $isOverlay=$Name -like 'widget-*' -or $Name -like 'fullscreen-*'
+ if (-not $isOverlay) {
   $visibleFrame=New-Object NativeDemo+Rect
   if ([NativeDemo]::DwmGetWindowAttribute($Window,9,[ref]$visibleFrame,16) -eq 0 -and $visibleFrame.Right -gt $visibleFrame.Left) { $rect=$visibleFrame }
  }
  $bitmap = New-Object System.Drawing.Bitmap ($rect.Right-$rect.Left),($rect.Bottom-$rect.Top),([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
  $captured = $false
- if ($Name -like 'widget-*' -or [NativeDemo]::GetForegroundWindow() -eq $Window) {
+ if ($isOverlay -or [NativeDemo]::GetForegroundWindow() -eq $Window) {
   $desktopDc=$graphics.GetHdc()
   try { $captured=[NativeDemo]::CaptureDesktop($desktopDc,$rect.Left,$rect.Top,$bitmap.Width,$bitmap.Height) }
   finally { $graphics.ReleaseHdc($desktopDc) }
@@ -85,10 +86,10 @@ function Capture([IntPtr]$Window,[string]$Name) {
   finally { $graphics.ReleaseHdc($dc) }
  }
  $graphics.Dispose()
- if ($Name -eq 'widget-000') {
-  $bright=$false
-  for ($y=2; $y -lt $bitmap.Height -and -not $bright; $y+=4) { for ($x=2; $x -lt $bitmap.Width; $x+=4) { $pixel=$bitmap.GetPixel($x,$y); if ($pixel.R -gt 100 -or $pixel.G -gt 100 -or $pixel.B -gt 100) { $bright=$true;break } } }
-  if (-not $bright) { throw 'Native overlay capture is blank; refusing to publish a black preview.' }
+ if ($Name -eq 'widget-006') {
+  $bright=$false;$ink=$false
+  for ($y=2; $y -lt $bitmap.Height; $y+=3) { for ($x=2; $x -lt $bitmap.Width; $x+=3) { $pixel=$bitmap.GetPixel($x,$y); if ($pixel.R -gt 200 -and $pixel.G -gt 200 -and $pixel.B -gt 200) { $bright=$true }; if ($pixel.R -lt 100 -and $pixel.G -lt 100 -and $pixel.B -lt 100) {$ink=$true} } }
+  if (-not ($bright -and $ink)) { throw 'Native overlay capture is blank; refusing to publish a black preview.' }
  }
  $bitmap.Save((Join-Path $Output "$Name.png"),[System.Drawing.Imaging.ImageFormat]::Png)
  $bitmap.Dispose()
@@ -139,6 +140,7 @@ try {
  Capture $settings '05-widget-layout'
  # Preview a widget using the current draft, without applying its mode to disk.
  Send-Command $settings 210
+ Set-Text $settings 301 'Ctrl+Alt+Space'
  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]1,[IntPtr]::Zero)
  Capture $settings '06-finish'
  # A plain editorial backdrop, created only by this recording script on its runner.
@@ -146,21 +148,29 @@ try {
  if ($stage -eq [IntPtr]::Zero) { throw 'Could not create the recording backdrop.' }
  $canvas=New-Object System.Drawing.Bitmap ([NativeDemo]::GetSystemMetrics(0)),([NativeDemo]::GetSystemMetrics(1))
  $paint=[System.Drawing.Graphics]::FromImage($canvas)
- $paint.Clear([System.Drawing.Color]::FromArgb(10,16,27));$paint.Dispose()
+ $gradient=New-Object System.Drawing.Drawing2D.LinearGradientBrush ([System.Drawing.Point]::new(0,0)),([System.Drawing.Point]::new($canvas.Width,$canvas.Height)),([System.Drawing.Color]::FromArgb(246,237,226)),([System.Drawing.Color]::FromArgb(205,221,242))
+ $paint.FillRectangle($gradient,0,0,$canvas.Width,$canvas.Height);$gradient.Dispose()
+ $paint.Dispose()
  $stageImage=$canvas.GetHbitmap();$canvas.Dispose()
  [void][NativeDemo]::SendMessage($stage,0x172,[IntPtr]::Zero,$stageImage)
  [void][NativeDemo]::UpdateWindow($stage)
  [void][NativeDemo]::ShowWindow($settings,0)
- Send-Command $settings 201
- Start-Sleep -Milliseconds 250
+ # Record both native modes on the same staged desktop; no keyboard decision is sent.
  $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
- if (-not [NativeDemo]::IsWindowVisible($overlay)) { throw 'Native widget preview was not visible.' }
- for ($frame=0;$frame -lt 24;$frame++) {
-  if (-not [NativeDemo]::IsWindowVisible($overlay)) {break}
-  $name=('widget-{0:D3}' -f $frame)
-  Capture $overlay $name
-  if (-not [NativeDemo]::IsWindowVisible($overlay)) {Remove-Item "$Output/$name.png";break}
-  Start-Sleep -Milliseconds 50
+ foreach ($mode in @(@{index=0;name='fullscreen'},@{index=1;name='widget'})) {
+  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]$mode.index,[IntPtr]::Zero)
+  Send-Command $settings 201
+  if (-not [NativeDemo]::IsWindowVisible($overlay)) {throw 'Native preview did not appear.'}
+  $written=0
+  for ($frame=0;$frame -lt 90;$frame++) {
+   if (-not [NativeDemo]::IsWindowVisible($overlay)) {break}
+   $name=('{0}-{1:D3}' -f $mode.name,$frame)
+   Capture $stage $name
+   if (-not [NativeDemo]::IsWindowVisible($overlay)) {Remove-Item "$Output/$name.png";break}
+   $written++
+   Start-Sleep -Milliseconds 35
+  }
+  if ($written -lt 12) {throw "Too few visible native preview frames: $written"}
  }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
  if ($disk.mode -ne 'Fullscreen') {throw 'Preview unexpectedly persisted the draft.'}
@@ -168,9 +178,9 @@ try {
    kind='Windows native application capture, editorial presentation';
    source_commit=$env:GITHUB_SHA; os=[Environment]::OSVersion.VersionString;
    font='Noto Sans CJK SC (downloaded for capture only; not shipped with the application)';
-   capture='Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic solid stage behind the overlay.';
+   capture='Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic gradient stage behind the overlay; no glass or blur is added in editing.';
    provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
-   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','native overlay preview visible and nonblank');
+   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','widget contains text and background');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
 } finally {
  if ($stage -ne [IntPtr]::Zero) { [void][NativeDemo]::DestroyWindow($stage) }
