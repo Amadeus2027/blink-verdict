@@ -1,0 +1,51 @@
+{
+  "provider": "loopback OpenAI-compatible synthetic fixture",
+  "recording_mode": false,
+  "limits": "Synthetic desktop only; tray-menu navigation, games, real providers, OCR, multi-monitor and endurance are outside this check.",
+  "checks": [
+    "real shortcut and PNG capture in both modes",
+    "busy repeat suppressed",
+    "foreground preserved",
+    "keyboard input delivered",
+    "mouse clicks pass through",
+    "clean process exit after WM_CLOSE"
+  ],
+  "os": "Microsoft Windows NT 10.0.26100.0",
+  "requests": 6,
+  "source_commit": "34c5ac498c73e0e3588fe4c7767707b2de030ffe",
+  "samples": {
+    "fresh": {
+      "PID": 3160,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 80.05,
+      "MeanPrivateWorkingSetMB": 1.39,
+      "PeakPrivateWorkingSetMB": 1.42,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 1.84,
+      "HandleCount": 167
+    },
+    "widget": {
+      "PID": 1340,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 77.46,
+      "MeanPrivateWorkingSetMB": 5.73,
+      "PeakPrivateWorkingSetMB": 5.79,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 6.93,
+      "HandleCount": 286
+    },
+    "after_use": {
+      "PID": 3160,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 77.6,
+      "MeanPrivateWorkingSetMB": 3.19,
+      "PeakPrivateWorkingSetMB": 3.91,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 4.27,
+      "HandleCount": 254
+    }
+  }
+}
