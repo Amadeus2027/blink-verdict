@@ -49,13 +49,15 @@ jobs:
         run: |
           $binary = Get-Item target/release/blink-verdict.exe
           "Native executable: $($binary.Length) bytes" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-      - name: Package development build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Package development build with licenses
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target/release/blink-verdict.exe, CHANGELOG.md -Destination dist
-          Copy-Item docs/portable.md -Destination dist/README.md
-          Compress-Archive -Path dist/* -DestinationPath blink-verdict-windows-x64-preview.zip
+          python scripts/release/package.py --development
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item dist/blink-verdict-windows-x64-preview.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: blink-verdict-windows-x64-preview
