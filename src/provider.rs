@@ -353,6 +353,7 @@ pub fn decide(config: &Config, key: &str, observation: Observation) -> Result<De
     drop(encoded);
     let value: Value =
         serde_json::from_slice(&bytes).map_err(|_| "模型服务未返回有效 JSON".to_string())?;
+    drop(bytes);
     parse_decision(config, &value)
 }
 

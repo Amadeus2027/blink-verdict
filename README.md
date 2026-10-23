@@ -13,12 +13,9 @@
   <a href="#你的画面由你掌握"><strong>隐私</strong></a>
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-8A8A8E?style=flat-square" alt="Windows 10 / 11" />
-  <img src="https://img.shields.io/badge/版本-0.1.0%20预览版-A8B9CB?style=flat-square" alt="0.1.0 预览版" />
-</p>
+<p align="center"><sub>Windows 10 / 11 · 安静待命 · 本地与云端模型</sub></p>
 
-<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="640" /></a><br/><sub>外观预览。完整短片与下载入口见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
+<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="640" /></a><br/><sub>完整功能预览 · 全屏文字、常驻浮窗、字效、布局与模型连接。原画短片见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
 
 ## 为需要做选择的那一刻
 

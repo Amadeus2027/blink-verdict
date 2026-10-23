@@ -2,6 +2,10 @@
 
 ## 0.1.0 — Unreleased development preview
 
+- Capture owns its GDI frame through RAII and encodes from a borrowed slice, avoiding an extra full-screen pixel vector. Release capture handles before OCR recognition/network waits; release raw response bytes after JSON parsing.
+- Separate settings state/events, page layouts and native controls. Remove the unreachable Apply command and its duplicate save/rebuild path; retain every used local/API adapter and saved protocol key.
+- Coordinated glass/graphite brand lockup and a complete product film with eased perspective moves, native word-art previews, local/API connection views and a short hidden-host resource sample.
+
 - Replace the expressive YES/NO presets with clear graphite-blue, softly tinted glass and welcome-style gradient script lettering, informed by actual Apple typography, Liquid Glass and Hello examples. Preserve saved preset keys and archive the previous artwork outside packaged assets.
 
 - Light grouped settings inspired by the supplied ChatGPT iOS references: three main sections, white grouped rows, outline icons, compact navigation and quiet window chrome.

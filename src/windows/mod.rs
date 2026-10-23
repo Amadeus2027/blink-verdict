@@ -775,12 +775,7 @@ impl App {
     }
 
     unsafe fn finish(&mut self) {
-        let events: Vec<_> = self
-            .receiver
-            .as_ref()
-            .map(|r| r.try_iter().collect())
-            .unwrap_or_default();
-        for event in events {
+        while let Some(event) = self.receiver.as_ref().and_then(|r| r.try_recv().ok()) {
             match event {
                 WorkerEvent::Captured => {
                     self.show("正在思考…".into(), self.capture_rect, None, false, None)
