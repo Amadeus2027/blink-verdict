@@ -64,6 +64,12 @@ impl Surface {
             }
         };
         let old = SelectObject(dc, bitmap);
+        if old.is_invalid() {
+            let error = windows::core::Error::from_win32();
+            let _ = DeleteObject(bitmap);
+            let _ = DeleteDC(dc);
+            return Err(error);
+        }
         Ok(Self {
             dc,
             bitmap,

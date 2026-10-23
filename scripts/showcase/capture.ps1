@@ -1,4 +1,9 @@
-param([string]$Executable = "$PSScriptRoot/../../target/release/blink-verdict.exe", [string]$Output = "$PSScriptRoot/../../showcase-frames")
+param(
+ [string]$Executable = "$PSScriptRoot/../../target/release/blink-verdict.exe",
+ [string]$Output = "$PSScriptRoot/../../showcase-frames",
+ [ValidateRange(10,120)][int]$IdleSampleSeconds = 10,
+ [switch]$RequireMeasurements
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -189,7 +194,9 @@ try {
  $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
  foreach ($mode in @(@{index=0;name='fullscreen'},@{index=1;name='widget'})) {
   [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]$mode.index,[IntPtr]::Zero)
+  $foregroundBefore=[NativeDemo]::GetForegroundWindow()
   Send-Command $settings 201
+  if ([NativeDemo]::GetForegroundWindow() -ne $foregroundBefore) {throw "Preview changed foreground window: $($mode.name)"}
   if (-not [NativeDemo]::IsWindowVisible($overlay)) {throw 'Native preview did not appear.'}
   $written=0
   for ($frame=0;$frame -lt 90;$frame++) {
@@ -212,12 +219,13 @@ try {
   Capture $stage ('art-'+$style.name)
   Send-Command $hostWindow 108
  }
- # A short development sample of the hidden host; not the release endurance gate.
+ # Release callers require a full sample; ordinary recording keeps the short development sample.
  Send-Command $settings 202
  Send-Command $hostWindow 108
  try {
-  & "$PSScriptRoot/../measure-idle.ps1" -Seconds 10 | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
+  & "$PSScriptRoot/../measure-idle.ps1" -Seconds $IdleSampleSeconds | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
  } catch {
+  if ($RequireMeasurements) { throw }
   @{ unavailable=$_.Exception.Message } | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
  }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
@@ -228,7 +236,7 @@ try {
    font='Noto Sans CJK SC (downloaded for capture only; not shipped with the application)';
    capture='DWM-composited desktop crops (SRCCOPY) of native settings and the visible overlay; PrintWindow fallback for settings. Synthetic gradient stage behind the overlay; no glass or blur is added in editing.';
    provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
-   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','widget contains text and background','fullscreen preserves the desktop outside text','widget rounded corner is transparent');
+   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','both previews preserve the foreground window','widget contains text and background','fullscreen preserves the desktop outside text','widget rounded corner is transparent');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
 } finally {
  if ($stage -ne [IntPtr]::Zero) { [void][NativeDemo]::DestroyWindow($stage) }

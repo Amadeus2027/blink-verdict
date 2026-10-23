@@ -1,8 +1,10 @@
 [package]
 name = "blink-verdict"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2021"
 description = "A lightweight Windows AI decision overlay"
+license = "MIT"
+repository = "https://github.com/Amadeus2027/blink-verdict"
 publish = false
 
 [dependencies]

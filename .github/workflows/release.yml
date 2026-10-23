@@ -1,0 +1,62 @@
+name: Release candidate preparation
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  candidate:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format and lint
+        shell: pwsh
+        run: |
+          cargo fmt --all -- --check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # Native control helpers mirror Win32 argument lists; retain compatible pixel slices.
+          cargo clippy --locked --all-targets -- -D warnings -A clippy::too_many_arguments -A clippy::chunks_exact_to_as_chunks
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Existing core and release-only network tests
+        shell: pwsh
+        run: |
+          cargo test --locked --lib
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --locked --test release_providers -- --ignored
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo build --locked --release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Real desktop shortcut, input and resource checks
+        shell: pwsh
+        run: ./scripts/release/desktop-smoke.ps1
+      - name: Native UI and transparent surface checks
+        shell: pwsh
+        run: ./scripts/showcase/capture.ps1 -RequireMeasurements
+      - name: Package candidate with licenses and checksums
+        run: python scripts/release/package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-windows-x64
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-validation-evidence
+          path: |
+            release-evidence/
+            showcase-frames/provenance.json
+            showcase-frames/idle-sample.json
+            showcase-frames/native-stderr.log
+          if-no-files-found: warn
