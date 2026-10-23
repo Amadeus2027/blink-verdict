@@ -126,10 +126,11 @@ jobs:
         run: |
           mkdir -p docs/assets/showcase
           cp showcase-edit/showcase.gif docs/assets/showcase.gif
+          cp showcase-edit/blink-verdict-showcase.mp4 docs/assets/showcase.mp4
           cp showcase-edit/showcase.json docs/assets/showcase/provenance.json
           cp showcase-frames/0*.png docs/assets/showcase/
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add docs/assets/showcase.gif docs/assets/showcase/
+          git add docs/assets/showcase.gif docs/assets/showcase.mp4 docs/assets/showcase/
           git diff --cached --quiet || git commit -m "docs: record Windows native interface showcase"
           git push origin "HEAD:$BRANCH"

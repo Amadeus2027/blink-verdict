@@ -8,10 +8,12 @@
 
 演示使用软件内置的外观预览，YES 是示例答案，没有向模型发送画面。全屏只显示文字，常驻浮窗使用可调半透明圆角背景；当前不包含背景模糊。
 
-**[下载完整产品短片](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934/artifacts/12495122025)**（需登录 GitHub）。下载项内含 MP4、README GIF 与来源记录；Actions 下载项有保留期限。
+**[观看或下载完整产品短片 · MP4](assets/showcase.mp4)**。视频与 GIF 均保存在仓库中，无需下载构建附件。
 
 <details>
 <summary>录制来源与复现方式</summary>
+
+[原始录制与导出任务](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934) 的附件额外保留录制帧、MP4、GIF 与来源记录（需登录 GitHub，附件有保留期限）。
 
 所有界面均来自真实的 Windows Rust 程序。源截图位于 [showcase](assets/showcase/01-decision.png)，[来源记录](assets/showcase/provenance.json) 保存源提交、操作系统、字体、采集方式和检查结果。
 
