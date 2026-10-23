@@ -29,3 +29,9 @@ The normal workflow runs five Windows core tests and builds/packages a portable 
 - Game Bar activation and compatibility, idle private working set/CPU, endurance and anti-cheat behavior. Targets remain ≤30 MB private working set and <0.1% average CPU for the hidden host, unmeasured.
 
 Follow [testing.md](testing.md) and record real evidence before a release. No stable-release or measured-memory claim follows from native compilation or file size.
+
+## Minimal word-art follow-up
+
+The new clear sans, rounded and serif YES/NO atlas follows a review of the actual Apple font specimens, Apple typography guidance and Inter specimens. The generated source remains in the workspace; the previous expressive atlas is archived outside embedded/package content. The runtime PNG decreased from 2,549,678 to 273,713 bytes. Packaging preserved every nontransparent RGBA pixel and every alpha value; all six 512-pixel cells contain glyphs with clear margins on a 1536 × 1024 canvas. The light-backed documentation specimen is a presentation of the transparent artwork, not a screenshot of the running application.
+
+Windows-GNU all-target compilation and four existing portable core groups passed locally. No new tests or broad release suite. The normal Windows checks also compile the optional component because its embedded artwork changed; actual small-widget/focus behavior remains part of the Windows release matrix.

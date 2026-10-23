@@ -1,11 +1,18 @@
 # Generated word-art atlas
 
-`wordart.png` is a transparent RGBA image generated with the image generation tool, revised following the owner's request for stronger Sekiro / Cyberpunk 2077 / Miami graffiti influences. It is an original typography asset, not an extracted game asset or a font file.
+`wordart.png` contains original generated YES/NO lettering for the light, minimal interface. It is transparent artwork, not an installable font or an embedded Apple typeface.
 
-- Dimensions: 1536 × 1024.
-- Three equal columns: blood-red ink, acid-yellow cyberpunk, hot-pink/turquoise graffiti.
-- Two equal rows: YES, NO.
-- Each sprite occupies a 512 × 512 source cell. Native Direct2D and the optional Game Bar widget select the same cells.
-- Plain text and user-selected PNG art remain available. Arbitrary labels do not acquire generated typography automatically.
+The design was reviewed against the actual [Apple font specimens](https://developer.apple.com/fonts/), [Apple typography guidance](https://developer.apple.com/design/human-interface-guidelines/typography) and [Inter display/UI specimens](https://rsms.me/inter/) before generation. The resulting styles use clear forms and readable strokes rather than hairlines, glow or decorative backgrounds.
 
-The original tool output remains in the session's generated-images directory; this tracked copy is used by the product.
+| Column | Visible preset | Saved key retained for compatibility |
+|---|---|---|
+| 0 | 清晰无衬线 / Clear sans | `Ink` |
+| 1 | 柔和圆角 / Soft rounded | `Cyberpunk` |
+| 2 | 现代衬线 / Modern serif | `Graffiti` |
+
+- Canvas: 1536 × 1024 RGBA, three columns, two rows; YES above NO.
+- Every source cell remains 512 × 512. Native Direct2D and Game Bar use the same atlas and crop layout. No new rendering path, dependency or idle work.
+- The generated source is preserved at `generated_images/exec-60a2c591-4144-4418-a544-0daf8fb6dad9.png` in the session workspace. Packaging clears RGB values only where alpha is zero and compresses the PNG; visible pixels and all alpha values were verified unchanged.
+- The previous atlas is preserved verbatim as [wordart-expressive.png](archive/wordart-expressive.png). Neither executable embedding nor Game Bar content includes that archive.
+- [Documentation preview](../docs/assets/wordart-preview.png) shows the new letters on a light surface for legibility in dark-mode readers. That surface is not part of the runtime atlas.
+- Plain text, arbitrary user labels and custom PNGs keep their existing behavior. These monochrome presets use their image colors; text-color changes apply to plain text.
