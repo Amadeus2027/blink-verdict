@@ -16,7 +16,7 @@ use windows::{
 pub struct Renderer {
     target: ID2D1DCRenderTarget,
     write: IDWriteFactory,
-    art: Option<(ID2D1Bitmap, D2D_RECT_F)>,
+    art: Option<(ID2D1Bitmap, D2D_RECT_F, [f32; 2])>,
     hwnd: HWND,
     surface: Surface,
 }
@@ -145,6 +145,7 @@ impl Renderer {
                             right: image.source[2],
                             bottom: image.source[3],
                         },
+                        image.offset,
                     )
                 })
         });
@@ -233,12 +234,14 @@ impl Renderer {
             M31: cx * (1.0 - motion.scale),
             M32: cy * (1.0 - motion.scale) + motion.offset_y,
         });
-        if let Some((bitmap, source)) = &self.art {
+        if let Some((bitmap, source, offset)) = &self.art {
             let ratio = (source.right - source.left) / (source.bottom - source.top);
             let height = (font_size * 3.0)
                 .min(rect.bottom - rect.top)
                 .min((rect.right - rect.left) / ratio);
             let width = height * ratio;
+            let cx = cx + offset[0] * width;
+            let cy = cy + offset[1] * height;
             let destination = D2D_RECT_F {
                 left: cx - width / 2.0,
                 top: cy - height / 2.0,

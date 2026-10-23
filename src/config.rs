@@ -7,9 +7,9 @@ pub enum ArtStyle {
     #[default]
     Plain,
     // Keep serialized keys stable for saved themes and the Game Bar bridge.
-    Ink,       // Clear sans
-    Cyberpunk, // Soft rounded
-    Graffiti,  // Modern serif
+    Ink,       // Clear color
+    Cyberpunk, // Tinted glass
+    Graffiti,  // Soft script
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]

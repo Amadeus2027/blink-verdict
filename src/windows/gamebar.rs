@@ -73,6 +73,7 @@ impl Bridge {
         } else {
             String::new()
         };
+        let offset = super::art::atlas_offset(config, text);
         (|| -> Result<bool> {
             let payload = serde_json::json!({
                 "action": action, "text": text,
@@ -84,6 +85,7 @@ impl Bridge {
                 "fontSize": if config.mode == DisplayMode::Fullscreen { config.theme.fullscreen_font_size } else { config.theme.widget_font_size },
                 "animation": config.theme.animation, "hotkey": config.hotkey,
                 "artStyle": config.theme.art_style, "customArt": custom_art,
+                "artOffsetX": offset[0], "artOffsetY": offset[1],
                 "width": if config.mode == DisplayMode::Fullscreen { rect.right - rect.left } else { config.widget_width },
                 "height": if config.mode == DisplayMode::Fullscreen { rect.bottom - rect.top } else { config.widget_height },
             });

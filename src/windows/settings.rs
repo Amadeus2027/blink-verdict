@@ -548,7 +548,7 @@ impl Settings {
                     parent,
                     340,
                     "文字风格",
-                    &["简洁文字", "清晰无衬线", "柔和圆角", "现代衬线"],
+                    &["简洁文字", "清晰纯色", "流光玻璃", "柔彩手写"],
                     match c.theme.art_style {
                         ArtStyle::Plain => 0,
                         ArtStyle::Ink => 1,
