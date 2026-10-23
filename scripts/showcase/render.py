@@ -95,6 +95,15 @@ export(['-f', 'concat', '-safe', '0', '-i', str(loop_listing), '-t', '8', '-c', 
 export(['-i', str(loop), '-filter_complex',
         'fps=18,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=192:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle',
         '-loop', '0', str(output / 'showcase.gif')])
+# Requantize the rendered GIF for the mobile README. Keeping this separate
+# preserves the reviewed palette before reducing size and frame rate.
+compact = output / 'showcase-mobile.gif'
+export(['-i', str(output / 'showcase.gif'), '-filter_complex',
+        'fps=10,scale=640:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=80[p];[b][p]paletteuse=dither=none:diff_mode=rectangle',
+        '-loop', '0', str(compact)])
+compact.replace(output / 'showcase.gif')
 provenance = json.loads((source / 'provenance.json').read_text(encoding='utf-8-sig'))
 provenance['editing'] = '24-second quiet product film; 8-second README loop; native previews with sample YES. Titles, cuts, scaling and white fades only. No simulated glass, no model requests.'
+provenance['readme_preview'] = {'width': 640, 'height': 400, 'fps': 10, 'palette_colors': 80,
+                                'processing': 'Downscaled and requantized from the rendered GIF; full MP4 retained.'}
 (output / 'showcase.json').write_text(json.dumps(provenance, ensure_ascii=False, indent=2) + '\n')
