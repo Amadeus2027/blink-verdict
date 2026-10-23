@@ -2,12 +2,12 @@
 
 ## 0.1.0 — Unreleased development preview
 
-- Minimal iOS-inspired native settings: sidebar, rounded inputs/buttons, Windows acrylic when available, opaque fallback and a translucent rounded widget.
-- First-run settings, single-click tray access, pause/resume that releases the shortcut, and disabled unavailable menu actions.
-- Page navigation retains unfinished fields; presets fill automatically and clear unsaved keys on endpoint/protocol changes. Apply/OK/Cancel and unsaved-change handling replace save-and-close-only interaction.
-- Two-second draft style preview without saving, capture, model traffic or Game Bar IPC; native persistent widget is the default for new installations. Existing durations remain intact.
-- Widget edit mode is temporary and can end with a right-click; a direct settings action applies and enters editing.
-- On-demand Windows-native showcase recording and editorial MP4/GIF generation, separate from daily checks.
+- Light grouped settings inspired by the supplied ChatGPT iOS references: three main sections, white grouped rows, outline icons, compact navigation and quiet window chrome.
+- First-run model → decision setup; click-and-press shortcut recording, color pickers, secondary pages for advanced options, and direct widget layout editing.
+- Done saves and closes, Cancel discards, and the window close button offers to save unfinished work. Draft fields survive navigation; the four-second preview reads no screen and calls no model.
+- Text-only transparent fullscreen output; only the widget has a rounded pane, with independent 0–100% background opacity. The optional Game Bar component follows the same rules.
+- Remove the accent-policy experiment after native capture exposed gray panes/black corners. Keep correct per-pixel alpha, light defaults and existing preferences; no webview, frame polling or new runtime package.
+- Product-focused interface, tray, README and portable copy. A calm 24-second native product film and a separate eight-second README loop replace the page-by-page tour.
 
 - Native tray host, configurable global shortcut and single-instance startup.
 - Passive fullscreen and click-through widget rendering, shared theme and independent lifetimes.

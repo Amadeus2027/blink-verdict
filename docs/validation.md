@@ -1,28 +1,31 @@
 # Development validation
 
-Date: 2026-10-22. This iteration retains Rust and refines the native settings / widget workflow, with sidebar glass, readable opaque form content, rounded controls and a recorded Windows showcase. Dedicated decision APIs, local service protocols and lightweight native HTTP / PNG components remain intact.
+Date: 2026-10-23. This iteration replaces the dark parameter panel with light grouped settings, restructures first-run and everyday actions, refreshes user-facing copy and records a quieter product film. The native Rust host, decision protocols and stored preferences remain compatible.
 
 ## Performed locally
 
-Environment: Linux with Rust stable and the x86_64-pc-windows-gnu standard library.
+Environment: Linux, Rust stable, x86_64-pc-windows-gnu standard library.
 
-- `cargo check --locked --target x86_64-pc-windows-gnu --all-targets`: passed. Includes WinHTTP, WIC, settings, both display modes, and compilation of stored release regressions.
-- `cargo test --locked --lib`: four platform-neutral core groups passed, including structured answers / confidence / probabilities, explicit abstention, old provider config compatibility and negative widget coordinates.
-- The current lockfile remains at 29 packages; the preceding transport / codec refactor reduced it from 146 by removing reqwest and the PNG crate. This UI iteration adds no runtime dependency. This is a dependency count, not a RAM benchmark.
-- Built-in atlas: 1536 × 1024 RGBA. Returned art pixels now cover one 512 × 512 cell (1 MiB BGRA instead of the 6 MiB full-atlas BGRA buffer); the embedded compressed PNG is borrowed rather than cloned. WIC's internal decoder allocations have not been measured.
-- Default CI remains small: four groups, including one Windows-only real WinHTTP loopback smoke within the provider group, plus one Windows-only native PNG roundtrip/crop/alpha smoke test (five tests on Windows). Broad network / live-provider / game / endurance checks remain release-only.
+- `cargo check --locked --target x86_64-pc-windows-gnu --all-targets`: passed for the native UI, transparent rendering and release regression compilation.
+- `cargo test --locked --lib`: four platform-neutral core groups passed. No broad release suite was run or added.
+- The lockfile remains at 29 packages. No new dependency packages or API feature requirements. This is not a memory measurement.
+- Interface/overlay painting remains event-driven. Both modes clear to transparent pixels; only widget mode fills a rounded pane with its own alpha. The accent-policy experiment was removed after recorded gray/black rendering defects, rather than claiming a working blur material.
 
-## Windows CI
+## Windows evidence
 
-The Windows workflow runs the five core tests, builds the MSVC release executable, reports its byte size, and packages a standalone EXE with quick-start/changelog. CI results and artifact links are recorded in the implementation PR. No application word-art asset or Game Bar source changed in this iteration, so the optional UWP build is skipped. Documentation captures are separate from application assets.
+[Native recording run](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934), source `a325c11`, Windows 11 build 26100: five Windows core tests, release build, native capture and video export passed. The recording uses synthetic settings and sample previews, verifies retained unfinished input, clearing an unsaved key on endpoint changes, preview isolation and both native display modes. Pixel comparisons confirm fullscreen surroundings preserve the desktop and widget rounded corners are transparent.
 
-The native UI code at `b8cf50e` passed [Windows CI run 39828111044](https://github.com/Amadeus2027/blink-verdict/actions/runs/39828111044): five core tests and the MSVC release build. The executable is **3,127,296 bytes (2.98 MiB)**, compared with the preceding implementation’s 3,097,088 bytes; no runtime dependencies were added. This measures file size only, not resident memory. [Recording run 39829350117](https://github.com/Amadeus2027/blink-verdict/actions/runs/39829350117) captures the same native code at `4f0ca38`, with a static GDI-compatible capture font, and exports the MP4/GIF. The manual recording checks actual GUI launch, all five settings pages, unfinished-field retention, clearing an unsaved key on endpoint change, and a visible native widget preview that does not save draft mode. These checks use synthetic data and zero provider requests; they do not establish game compatibility.
+Reviewed the captured decision/appearance/detail pages and frames from both modes: YES/NO are both visible, the background control fits, fullscreen text has no pane, and the widget has no gray block or black corners. The README GIF is 960 × 600, 8.12 seconds and 1,549,888 bytes; the reviewed film is exactly 24 seconds and 303,159 bytes. The [MP4](assets/showcase.mp4) and GIF are retained in the repository. This is limited GUI evidence on the runner, not a game or performance benchmark.
 
-## Unverified runtime / release gates
+[Windows native/package and optional UWP build](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938831360) passed for source `a325c11`: five tests, native release executable **3,163,648 bytes**, unsigned Game Bar package. File size is not resident-memory usage. Final guidance/cleanup checks are linked on the PR.
 
-- Passive focus/input in real apps/games, interactive borderless resize, numeric geometry persistence, multi-monitor/DPI behavior, Windows 10 material fallback and consumer Windows 11 acrylic appearance. The limited CI recording confirms launch/settings pages/preview on its Windows Server runner, not this wider matrix.
-- Real Jev / Decider / Clef / OpenAI Decisions accounts, local model weights / serving environments, OCR availability, model quality and refusal behavior. Protocol fixtures are synthetic, not captured live responses.
-- Game Bar activation, positioning, hidden state and game compatibility. Previous CI packaging is not runtime evidence.
-- Idle private working set, CPU, repeated-use resource stability and game anti-cheat compatibility. Hidden-host targets remain ≤30 MB private working set and <0.1% mean CPU, unmeasured.
+The normal workflow runs five Windows core tests and builds/packages a portable executable. Game Bar rendering changed to match transparent fullscreen and independent widget alpha, so the optional UWP build is required for this iteration. Native build/package and optional-component results are available in the [PR checks](https://github.com/Amadeus2027/blink-verdict/pull/4/checks).
 
-No stable release or measured RAM claim follows from compile checks or dependency reduction. Follow `docs/testing.md` and record evidence before a release.
+## Release gates still unverified
+
+- Actual focus/input in games and other applications, direct shortcut recording with physical modifier keys, first-run Next/Enter, native color/font dialogs, drag/resize persistence, multimonitor/DPI and Windows 10 behavior.
+- Consumer Windows 10/11 alpha rendering, high contrast and resource cost. The current widget provides semitransparency, without a background-blur claim.
+- Live Jev, Decider, Clef, OpenAI Decisions and local services; OCR/model availability, quality, refusal and provider credentials. Fixtures and preview YES are synthetic.
+- Game Bar activation and compatibility, idle private working set/CPU, endurance and anti-cheat behavior. Targets remain ≤30 MB private working set and <0.1% average CPU for the hidden host, unmeasured.
+
+Follow [testing.md](testing.md) and record real evidence before a release. No stable-release or measured-memory claim follows from native compilation or file size.

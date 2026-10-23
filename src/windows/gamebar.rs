@@ -80,6 +80,7 @@ impl Bridge {
                 "durationMs": if config.mode == DisplayMode::Fullscreen { config.theme.fullscreen_duration_ms } else { config.theme.widget_duration_ms },
                 "font": config.theme.font, "textColor": config.theme.text_color,
                 "backgroundColor": config.theme.background_color, "opacity": config.theme.opacity,
+                "widgetBackgroundOpacity": config.theme.widget_background_opacity,
                 "fontSize": if config.mode == DisplayMode::Fullscreen { config.theme.fullscreen_font_size } else { config.theme.widget_font_size },
                 "animation": config.theme.animation, "hotkey": config.hotkey,
                 "artStyle": config.theme.art_style, "customArt": custom_art,

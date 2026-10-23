@@ -91,6 +91,15 @@ impl Renderer {
         let factory: ID2D1Factory = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
         let mut rect = RECT::default();
         GetClientRect(hwnd, &mut rect)?;
+        if config.mode == DisplayMode::Widget {
+            let region = CreateRoundRectRgn(0, 0, rect.right, rect.bottom, 48, 48);
+            if SetWindowRgn(hwnd, region, false) == 0 {
+                let _ = DeleteObject(region);
+            }
+        } else {
+            SetWindowRgn(hwnd, HRGN::default(), false);
+        }
+
         let properties = D2D1_RENDER_TARGET_PROPERTIES {
             r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
             pixelFormat: D2D1_PIXEL_FORMAT {
@@ -158,22 +167,24 @@ impl Renderer {
         let size = self.target.GetSize();
         self.target.BeginDraw();
         let widget = config.mode == DisplayMode::Widget;
-        if widget {
-            self.target.Clear(Some(&D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            }));
+        // Clear every pixel in both modes. Fullscreen owns no pane: the desktop
+        // remains visible around text and transparent PNGs, including during fades.
+        self.target.Clear(Some(&D2D1_COLOR_F {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        }));
+        if widget && config.theme.widget_background_opacity > 0 {
             let mut tint = color(&config.theme.background_color);
-            tint.a = 0.92;
+            tint.a = config.theme.widget_background_opacity as f32 / 255.0;
             let background = self.target.CreateSolidColorBrush(&tint, None)?;
             let border = self.target.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
                     r: 1.0,
                     g: 1.0,
                     b: 1.0,
-                    a: 0.16,
+                    a: tint.a * 0.68,
                 },
                 None,
             )?;
@@ -184,20 +195,17 @@ impl Renderer {
                     right: size.width - 0.5,
                     bottom: size.height - 0.5,
                 },
-                radiusX: 16.0,
-                radiusY: 16.0,
+                radiusX: 24.0,
+                radiusY: 24.0,
             };
             self.target.FillRoundedRectangle(&shape, &background);
             self.target.DrawRoundedRectangle(&shape, &border, 1.0, None);
-        } else {
-            self.target
-                .Clear(Some(&color(&config.theme.background_color)));
         }
         let brush = self
             .target
             .CreateSolidColorBrush(&color(&config.theme.text_color), None)?;
         let margin = if widget { 18.0 } else { size.width * 0.06 };
-        let top = if widget { 34.0 } else { margin };
+        let top = if widget { 12.0 } else { margin };
         let bottom = if widget {
             size.height - 28.0
         } else {
@@ -258,27 +266,15 @@ impl Renderer {
         if widget {
             let muted = self.target.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
-                    r: 0.65,
-                    g: 0.66,
-                    b: 0.70,
+                    r: 0.48,
+                    g: 0.48,
+                    b: 0.50,
                     a: 1.0,
                 },
                 None,
             )?;
-            self.text(
-                "B L I N K V E R D I C T",
-                &config.theme.font,
-                10.0,
-                D2D_RECT_F {
-                    left: 12.0,
-                    top: 6.0,
-                    right: size.width - 12.0,
-                    bottom: 27.0,
-                },
-                &muted,
-            )?;
             let footer = if editing {
-                "编辑中 · 拖动 / 缩放 · 右键完成"
+                "右键完成调整"
             } else {
                 &config.hotkey
             };
