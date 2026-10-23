@@ -46,12 +46,12 @@ def hero(name, image, heading, detail, duration=4, reverse=False):
     perspective = (f'perspective=x0=180*{tilt}:y0=-120*{tilt}:'
                    f'x1=W-120*{tilt}:y1=170*{tilt}:x2=30*{tilt}:y2=H+95*{tilt}:'
                    f'x3=W-40*{tilt}:y3=H-90*{tilt}:sense=destination:eval=frame')
-    graph = ('[0:v]format=rgba,scale=540:-1,pad=1280:800:105:(oh-ih)/2:color=black@0,'
+    graph = ('[0:v]format=rgba,scale=500:-1,pad=1280:800:70:(oh-ih)/2:color=black@0,'
              + perspective + ',split[face][mask];'
              '[mask]colorchannelmixer=rr=0:gg=0:bb=0:aa=0.13,gblur=sigma=12[shadow];'
              '[1:v][shadow]overlay=14:22[base];[base][face]overlay=0:0,'
-             + label(heading, name+'-title', 36, 750, 290) + ','
-             + label(detail, name+'-detail', 21, 750, 356, '0x86868B'))
+             + label(heading, name+'-title', 36, 850, 290) + ','
+             + label(detail, name+'-detail', 21, 850, 356, '0x86868B'))
     scene(name, duration, ['-loop', '1', '-framerate', str(FPS), '-i', str(source/image), *canvas()], graph)
 
 
@@ -93,7 +93,7 @@ export(['-f', 'concat', '-safe', '0', '-i', str(listing), '-c', 'copy', '-movfla
 from PIL import Image
 frames_dir = output/'gif-frames'
 frames_dir.mkdir(exist_ok=True)
-export(['-i', str(video), '-vf', 'setpts=PTS/1.5,fps=5,scale=560:350:flags=lanczos', str(frames_dir/'%04d.png')])
+export(['-i', str(video), '-vf', 'setpts=PTS/1.5,fps=5,scale=512:320:flags=lanczos', str(frames_dir/'%04d.png')])
 paths = sorted(frames_dir.glob('*.png'))
 sample = Image.new('RGB', (160*8, 100*3))
 for index in range(24):
@@ -110,7 +110,7 @@ provenance = json.loads((source/'provenance.json').read_text(encoding='utf-8-sig
 provenance['editing'] = 'Complete native product tour; planar perspective, eased camera moves, independent shadows, cuts and captions. No simulated app state or live material effects.'
 provenance['chapters'] = [p.stem for p, _ in scenes]
 provenance['film_seconds'] = sum(d for _, d in scenes)
-provenance['readme_preview'] = {'width': 560, 'height': 350, 'fps': 5, 'all_chapters': True,
+provenance['readme_preview'] = {'width': 512, 'height': 320, 'fps': 5, 'all_chapters': True,
                                 'bytes': (output/'showcase.gif').stat().st_size}
 if (source/'idle-sample.json').exists():
     provenance['hidden_host_sample'] = json.loads((source/'idle-sample.json').read_text(encoding='utf-8-sig'))
