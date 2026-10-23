@@ -15,7 +15,7 @@ CIM 查询使实际采样区间超过 60 秒，原始结果保留实际时长。
 - `blink-verdict-0.1.0-rc.1-windows-x64.zip`
 - `SHA256SUMS.txt`
 
-ZIP 内只有程序、快速使用说明、更新记录、MIT 许可、依赖许可及 `build-info.json`。清单记录版本、源码提交、工具链、锁文件摘要和各文件 SHA-256；校验和校验传输内容，不等于代码签名。实验性 Game Bar、演示影片、截图、配置、密钥、测试工具和模型权重不随包分发。
+ZIP 内只有程序、快速使用说明、更新记录、MIT 许可、依赖许可、Rust 标准库声明及 `build-info.json`。清单记录版本、源码提交、工具链、锁文件摘要和各文件 SHA-256；校验和校验传输内容，不等于代码签名。实验性 Game Bar、演示影片、截图、配置、密钥、测试工具和模型权重不随包分发。
 
 `release-validation-evidence` 保存合成桌面验证和资源采样 JSON。候选包未使用 Authenticode 签名，未提供 ARM64 / x86 产物。
 

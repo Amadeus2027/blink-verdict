@@ -34,6 +34,7 @@ public static class DesktopCheck {
  public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
+ [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h,StringBuilder text,int count);
  [DllImport("user32.dll")] static extern uint SendInput(uint n,Input[] inputs,int size);
  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
@@ -129,8 +130,11 @@ try {
    $samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
    $samples.after_use|ConvertTo-Json|Set-Content "$Output/after-use.json" -Encoding utf8NoBOM
   }
-  [void][DesktopCheck]::SendMessage($hostWindow,0x111,[IntPtr]105,[IntPtr]::Zero)
-  if (-not $app.WaitForExit(5000)) {throw 'Native host did not exit.'}
+  if (-not [DesktopCheck]::PostMessage($hostWindow,0x111,[IntPtr]105,[IntPtr]::Zero)) {throw 'Could not queue the exit command.'}
+  if (-not $app.WaitForExit(8000)) {
+   $app.Refresh()
+   throw "Native host did not exit: alive=$(-not $app.HasExited), host=$([DesktopCheck]::FindByClass('BlinkVerdict.Host')), overlay=$([DesktopCheck]::FindByClass('BlinkVerdict.Overlay'))"
+  }
   if ($app.ExitCode -ne 0) {throw 'Native host exited unsuccessfully.'}
  }
  foreach ($name in @('fresh','after_use')) {

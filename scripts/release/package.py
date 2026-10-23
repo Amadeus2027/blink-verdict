@@ -40,6 +40,10 @@ for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version
     for text in sorted(texts):
         notices.append(f'\n--- {text.name} ---\n{text.read_text(encoding="utf-8")}\n')
 (stage / 'THIRD_PARTY_NOTICES.txt').write_text(''.join(notices), encoding='utf-8')
+# Rust's standard library is statically linked but is outside Cargo metadata.
+sysroot = Path(subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip())
+library_notice = sysroot / 'share/doc/rust/COPYRIGHT-library.html'
+shutil.copyfile(library_notice, stage / 'RUST_LIBRARY_NOTICES.html')
 commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 manifest = {
     'version': version, 'source_commit': commit, 'target': 'x86_64-pc-windows-msvc',
