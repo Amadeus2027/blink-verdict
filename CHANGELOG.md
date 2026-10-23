@@ -5,7 +5,8 @@
 - Light grouped settings inspired by the supplied ChatGPT iOS references: three main sections, white grouped rows, outline icons, compact navigation and quiet window chrome.
 - First-run model → decision setup; click-and-press shortcut recording, color pickers, secondary pages for advanced options, and direct widget layout editing.
 - Done saves and closes, Cancel discards, and the window close button offers to save unfinished work. Draft fields survive navigation; the four-second preview reads no screen and calls no model.
-- Optional native system blur for the passive widget, a simpler result surface and light defaults. Existing saved themes remain intact; disabled transparency/high contrast use a readable fallback. No webview, frame polling or new runtime package.
+- Text-only transparent fullscreen output; only the widget has a rounded pane, with independent 0–100% background opacity. The optional Game Bar component follows the same rules.
+- Remove the accent-policy experiment after native capture exposed gray panes/black corners. Keep correct per-pixel alpha, light defaults and existing preferences; no webview, frame polling or new runtime package.
 - Product-focused interface, tray, README and portable copy. A calm 24-second native product film and a separate eight-second README loop replace the page-by-page tour.
 
 - Native tray host, configurable global shortcut and single-instance startup.

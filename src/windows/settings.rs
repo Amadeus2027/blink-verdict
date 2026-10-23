@@ -19,6 +19,7 @@ const BACK: usize = 220;
 const TEXT_COLOR: usize = 221;
 const BACKGROUND_COLOR: usize = 222;
 const CLOSE: usize = 223;
+const FONT: usize = 225;
 
 #[derive(Clone)]
 enum Field {
@@ -256,6 +257,14 @@ impl Settings {
                 WINDOW_STYLE((ES_AUTOHSCROLL | ES_RIGHT) as u32)
             };
         let hwnd = self.control(parent, id, w!("EDIT"), value, style, x, top, width, height);
+        if matches!(id, 301 | 314) {
+            let hint = wide(if id == 301 {
+                "按下组合键"
+            } else {
+                "输入或保留已有密钥"
+            });
+            SendMessageW(hwnd, 0x1501, WPARAM(0), LPARAM(hint.as_ptr() as isize));
+        }
         SendMessageW(
             hwnd,
             EM_SETLIMITTEXT,
@@ -387,7 +396,7 @@ impl Settings {
                 );
                 self.section(parent, "你的决策", 378);
                 self.edit(parent, 302, "想判断什么", &c.prompt, 408, 140);
-                self.edit(parent, 303, "答案选项", &c.options.join("\r\n"), 532, 106);
+                self.edit(parent, 303, "答案选项", &c.options.join("\r\n"), 564, 140);
                 self.label(
                     parent,
                     "每行一个答案。证据不足时会显示“无法判断”。",
@@ -489,9 +498,9 @@ impl Settings {
                 self.button(parent, 216, "连接选项  ›", 36, 664, 728, 42);
             }
             2 => {
-                self.card(36, 174, 728, 152);
-                self.section(parent, "显示效果", 352);
-                self.card(36, 382, 728, 186);
+                self.card(36, 174, 728, 120);
+                self.section(parent, "显示效果", 320);
+                self.card(36, 350, 728, 248);
                 self.combo(
                     parent,
                     328,
@@ -504,20 +513,33 @@ impl Settings {
                         Animation::Pop => 3,
                         Animation::Slide => 4,
                     },
-                    382,
+                    350,
                 );
-                self.button(parent, 329, "持续显示浮窗", 36, 444, 728, 62);
-                self.button(parent, 217, "颜色与时长  ›", 36, 506, 728, 62);
+                self.rows.push((329, 412));
+                self.rows.push((217, 536));
+                self.button(parent, 329, "持续显示浮窗", 36, 412, 728, 62);
+                self.edit(
+                    parent,
+                    332,
+                    "浮窗背景 · 不透明度 %",
+                    &format!(
+                        "{:.1}",
+                        c.theme.widget_background_opacity as f32 * 100.0 / 255.0
+                    ),
+                    474,
+                    0,
+                );
+                self.button(parent, 217, "颜色与时长  ›", 36, 536, 728, 62);
                 self.label(
                     parent,
-                    "预览会短暂显示当前外观，不会触发决策。",
+                    "全屏只浮现文字；背景仅用于常驻浮窗。",
                     58,
-                    582,
+                    612,
                     680,
                     26,
                 );
-                self.button(parent, 213, "字效与图片  ›", 36, 626, 354, 64);
-                self.button(parent, 214, "位置与大小  ›", 410, 626, 354, 64);
+                self.button(parent, 213, "字效与图片  ›", 36, 650, 354, 64);
+                self.button(parent, 214, "位置与大小  ›", 410, 650, 354, 64);
             }
             3 => {
                 self.section(parent, "答案的表达", 162);
@@ -662,10 +684,10 @@ impl Settings {
                 for (id, label, value, y) in [
                     (320, "文字字体", c.theme.font, 192),
                     (321, "文字颜色", c.theme.text_color, 254),
-                    (322, "背景颜色", c.theme.background_color, 316),
+                    (322, "浮窗背景颜色", c.theme.background_color, 316),
                     (
                         323,
-                        "不透明度 · %",
+                        "整体不透明度 · %",
                         format!("{:.1}", c.theme.opacity as f32 * 100.0 / 255.0),
                         378,
                     ),
@@ -679,10 +701,11 @@ impl Settings {
                 ] {
                     self.edit(parent, id, label, &value, y, 0);
                 }
+                self.button(parent, FONT, "选择字体", 590, 210, 144, 28);
                 self.button(parent, TEXT_COLOR, "选色", 590, 272, 144, 28);
                 self.button(parent, BACKGROUND_COLOR, "选色", 590, 334, 144, 28);
                 // Leave the editable HEX value visible beside its color picker.
-                for id in [321, 322] {
+                for id in [320, 321, 322] {
                     let h = self.hwnd(id);
                     let mut r = RECT::default();
                     let _ = GetWindowRect(h, &mut r);
@@ -710,7 +733,11 @@ impl Settings {
                     parent,
                     327,
                     "浮窗收起",
-                    &seconds_text(c.theme.widget_duration_ms.max(5000)),
+                    &seconds_text(if c.theme.widget_duration_ms == 0 {
+                        5000
+                    } else {
+                        c.theme.widget_duration_ms
+                    }),
                     676,
                     0,
                 );
@@ -810,7 +837,7 @@ impl Settings {
                 self.rect(*x, *y, *w, *h),
                 visual::FIELD,
                 visual::FIELD,
-                (32.0 * self.scale) as i32,
+                (48.0 * self.scale) as i32,
             );
         }
         for (id, y) in &self.rows {
@@ -840,7 +867,7 @@ impl Settings {
             self.style.text(
                 dc,
                 text,
-                self.rect(62, 200, 676, 66),
+                self.rect(62, 185, 676, 58),
                 self.style.title,
                 visual::TEXT,
                 DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS,
@@ -848,7 +875,7 @@ impl Settings {
             self.style.text(
                 dc,
                 "选择喜欢的方式，让答案自然浮现。",
-                self.rect(62, 280, 676, 26),
+                self.rect(62, 251, 676, 26),
                 self.style.small,
                 visual::MUTED,
                 DT_CENTER | DT_SINGLELINE,
@@ -863,7 +890,7 @@ impl Settings {
         let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
         let primary = id == SAVE || id == NEXT;
         let combo = item.CtlType == ODT_COMBOBOX;
-        let background = if combo || id == 329 {
+        let background = if combo || matches!(id, 329 | TEXT_COLOR | BACKGROUND_COLOR | FONT) {
             visual::FIELD
         } else {
             visual::BACKGROUND
@@ -891,13 +918,15 @@ impl Settings {
                 item.rcItem,
                 fill,
                 fill,
-                ((if tab { 34.0 } else { 28.0 }) * self.scale) as i32,
+                ((if tab { 42.0 } else { 48.0 }) * self.scale) as i32,
             );
         }
         if id == 217 {
             let mut top = item.rcItem;
             top.bottom = (top.top + top.bottom) / 2;
-            FillRect(item.hDC, &top, self.style.field);
+            let brush = CreateSolidBrush(fill);
+            FillRect(item.hDC, &top, brush);
+            let _ = DeleteObject(brush);
         }
         let label = if combo {
             self.choice_labels
@@ -950,6 +979,35 @@ impl Settings {
                 | DT_END_ELLIPSIS
                 | if row || combo { DT_LEFT } else { DT_CENTER },
         );
+        if id == 329 {
+            let mut line = item.rcItem;
+            line.top = line.bottom - 1;
+            line.left += (58.0 * self.scale) as i32;
+            line.right -= (22.0 * self.scale) as i32;
+            let brush = CreateSolidBrush(visual::LINE);
+            FillRect(item.hDC, &line, brush);
+            let _ = DeleteObject(brush);
+        }
+        if matches!(id, TEXT_COLOR | BACKGROUND_COLOR) {
+            let field = if id == TEXT_COLOR { 321 } else { 322 };
+            if let Ok([r, g, b]) = blink_verdict::config::parse_color(&self.text(field)) {
+                let x = item.rcItem.left + (12.0 * self.scale) as i32;
+                let y = (item.rcItem.top + item.rcItem.bottom) / 2 - (6.0 * self.scale) as i32;
+                let color = COLORREF(r as u32 | ((g as u32) << 8) | ((b as u32) << 16));
+                visual::rounded(
+                    item.hDC,
+                    RECT {
+                        left: x,
+                        top: y,
+                        right: x + (12.0 * self.scale) as i32,
+                        bottom: y + (12.0 * self.scale) as i32,
+                    },
+                    color,
+                    visual::LINE,
+                    (12.0 * self.scale) as i32,
+                );
+            }
+        }
         if id == 329 {
             let r = item.rcItem;
             let x = r.right - (80.0 * self.scale) as i32;
@@ -1103,6 +1161,15 @@ impl Settings {
                 c.vision = self.selection(315) == 0;
             }
             2 => {
+                let opacity = self
+                    .text(332)
+                    .trim()
+                    .parse::<f64>()
+                    .map_err(|_| "请填写 0–100 之间的浮窗背景不透明度".to_string())?;
+                if !opacity.is_finite() || !(0.0..=100.0).contains(&opacity) {
+                    return Err("浮窗背景不透明度应为 0–100%".into());
+                }
+                c.theme.widget_background_opacity = (opacity * 255.0 / 100.0).round() as u8;
                 if self.checked(329) {
                     c.theme.widget_duration_ms = 0;
                 } else if c.theme.widget_duration_ms == 0 {
@@ -1542,6 +1609,27 @@ pub(super) unsafe extern "system" fn window_proc(
                     ui.page = ui.root_page();
                     ui.build(hwnd);
                 }
+                FONT => {
+                    let ui = app.settings_ui.as_mut().unwrap();
+                    let face = wide(&ui.text(320));
+                    let mut font = LOGFONTW::default();
+                    for (slot, ch) in font.lfFaceName.iter_mut().zip(face.iter().take(31)) {
+                        *slot = *ch;
+                    }
+                    let mut chooser = CHOOSEFONTW {
+                        lStructSize: std::mem::size_of::<CHOOSEFONTW>() as u32,
+                        hwndOwner: hwnd,
+                        lpLogFont: &mut font,
+                        Flags: CF_SCREENFONTS
+                            | CF_INITTOLOGFONTSTRUCT
+                            | CF_NOSIZESEL
+                            | CF_NOSTYLESEL,
+                        ..Default::default()
+                    };
+                    if ChooseFontW(&mut chooser).as_bool() {
+                        let _ = SetWindowTextW(ui.hwnd(320), PCWSTR(font.lfFaceName.as_ptr()));
+                    }
+                }
                 TEXT_COLOR | BACKGROUND_COLOR => {
                     let ui = app.settings_ui.as_mut().unwrap();
                     let field = if id == TEXT_COLOR { 321 } else { 322 };
@@ -1797,6 +1885,9 @@ unsafe extern "system" fn control_proc(
         }
         if GetKeyState(0x5B) < 0 || GetKeyState(0x5C) < 0 {
             parts.push("Win".into());
+        }
+        if parts.is_empty() {
+            return LRESULT(0);
         }
         parts.push(name);
         let value = wide(&parts.join("+"));

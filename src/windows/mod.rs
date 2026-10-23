@@ -2,7 +2,6 @@ mod art;
 mod capture;
 mod credentials;
 mod gamebar;
-mod glass;
 mod hotkey;
 mod render;
 mod settings;
@@ -23,12 +22,7 @@ use windows::{
     Win32::{
         Foundation::*,
         Graphics::Gdi::*,
-        System::{
-            Com::*,
-            LibraryLoader::{GetModuleHandleW, GetProcAddress},
-            Threading::*,
-            WinRT::*,
-        },
+        System::{Com::*, LibraryLoader::GetModuleHandleW, Threading::*, WinRT::*},
         UI::{HiDpi::*, Input::KeyboardAndMouse::*, Shell::*, WindowsAndMessaging::*},
     },
 };
@@ -510,7 +504,6 @@ impl App {
         self.visible = false;
         self.expires_at = None;
         self.renderer = None;
-        glass::set(self.overlay, false);
         self.presentation = None;
     }
 

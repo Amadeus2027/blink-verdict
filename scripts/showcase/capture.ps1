@@ -50,7 +50,7 @@ if ([NativeDemo]::AddFontResourceEx($font,0,[IntPtr]::Zero) -eq 0) { throw 'Coul
 # Isolated synthetic preferences. No credentials, screenshots, provider or model calls.
 $demoData = Join-Path $env:RUNNER_TEMP 'blink-verdict-showcase-data'
 New-Item -ItemType Directory -Force "$demoData/BlinkVerdict" | Out-Null
-@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); widget_x=([int]([NativeDemo]::GetSystemMetrics(0)/2)-200); widget_y=([int]([NativeDemo]::GetSystemMetrics(1)/2)-90); widget_width=400; widget_height=180; theme=@{font='Noto Sans CJK SC'; widget_duration_ms=0; text_color='1D1D1F'; background_color='F4F4F7'; opacity=244} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
+@{ mode='Fullscreen'; provider='Jev'; prompt='根据当前局面选择适合的下一步行动。证据不足时放弃判断。'; options=@('YES','NO'); widget_x=([int]([NativeDemo]::GetSystemMetrics(0)/2)-200); widget_y=([int]([NativeDemo]::GetSystemMetrics(1)/2)-90); widget_width=400; widget_height=180; theme=@{font='Noto Sans CJK SC'; widget_duration_ms=0; text_color='1D1D1F'; background_color='F4F4F7'; opacity=244; widget_background_opacity=180} } | ConvertTo-Json -Depth 4 | Set-Content "$demoData/BlinkVerdict/config.json" -Encoding utf8NoBOM
 $env:LOCALAPPDATA = $demoData
 $env:RUST_BACKTRACE = '1'
 $app = Start-Process -FilePath (Resolve-Path $Executable) -ArgumentList '--recordable-preview' -PassThru -RedirectStandardError "$Output/native-stderr.log" -RedirectStandardOutput "$Output/native-stdout.log"
@@ -65,7 +65,7 @@ function Capture([IntPtr]$Window,[string]$Name) {
   Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
- $isOverlay=$Name -like 'widget-*' -or $Name -like 'fullscreen-*'
+ $isOverlay=$Name -like 'widget-*' -or $Name -like 'fullscreen-*' -or $Name -eq 'stage-reference'
  if (-not $isOverlay) {
   $visibleFrame=New-Object NativeDemo+Rect
   if ([NativeDemo]::DwmGetWindowAttribute($Window,9,[ref]$visibleFrame,16) -eq 0 -and $visibleFrame.Right -gt $visibleFrame.Left) { $rect=$visibleFrame }
@@ -86,6 +86,22 @@ function Capture([IntPtr]$Window,[string]$Name) {
   finally { $graphics.ReleaseHdc($dc) }
  }
  $graphics.Dispose()
+ if ($Name -eq 'fullscreen-006' -or $Name -eq 'widget-006') {
+  $reference=[System.Drawing.Bitmap]::new((Join-Path $Output 'stage-reference.png'))
+  try {
+   # Empty parts of the overlay must preserve the actual desktop, not a pane.
+   foreach ($point in @(@(2,2),@([int]($bitmap.Width/4),[int]($bitmap.Height/4)),@([int]($bitmap.Width*3/4),[int]($bitmap.Height*3/4)))) {
+    $actual=$bitmap.GetPixel($point[0],$point[1]);$expected=$reference.GetPixel($point[0],$point[1])
+    if ([Math]::Abs($actual.R-$expected.R) -gt 2 -or [Math]::Abs($actual.G-$expected.G) -gt 2 -or [Math]::Abs($actual.B-$expected.B) -gt 2) {throw 'Overlay covered the desktop outside its content.'}
+   }
+   if ($Name -eq 'widget-006') {
+    # The rounded pane corner must also remain transparent (no black rectangle).
+    $x=[int]($bitmap.Width/2)-199;$y=[int]($bitmap.Height/2)-89
+    $actual=$bitmap.GetPixel($x,$y);$expected=$reference.GetPixel($x,$y)
+    if ([Math]::Abs($actual.R-$expected.R) -gt 2 -or [Math]::Abs($actual.G-$expected.G) -gt 2 -or [Math]::Abs($actual.B-$expected.B) -gt 2) {throw 'Widget has an opaque corner.'}
+   }
+  } finally {$reference.Dispose()}
+ }
  if ($Name -eq 'widget-006') {
   $bright=$false;$ink=$false
   for ($y=2; $y -lt $bitmap.Height; $y+=3) { for ($x=2; $x -lt $bitmap.Width; $x+=3) { $pixel=$bitmap.GetPixel($x,$y); if ($pixel.R -gt 200 -and $pixel.G -gt 200 -and $pixel.B -gt 200) { $bright=$true }; if ($pixel.R -lt 100 -and $pixel.G -lt 100 -and $pixel.B -lt 100) {$ink=$true} } }
@@ -138,6 +154,14 @@ try {
  Send-Command $settings 214
  Start-Sleep -Milliseconds 180
  Capture $settings '05-widget-layout'
+ Send-Command $settings 212
+ Send-Command $settings 217
+ Start-Sleep -Milliseconds 180
+ Capture $settings '07-details'
+ Send-Command $settings 211
+ Send-Command $settings 216
+ Start-Sleep -Milliseconds 180
+ Capture $settings '08-connection'
  # Preview a widget using the current draft, without applying its mode to disk.
  Send-Command $settings 210
  Set-Text $settings 301 'Ctrl+Alt+Space'
@@ -155,6 +179,7 @@ try {
  [void][NativeDemo]::SendMessage($stage,0x172,[IntPtr]::Zero,$stageImage)
  [void][NativeDemo]::UpdateWindow($stage)
  [void][NativeDemo]::ShowWindow($settings,0)
+ Capture $stage 'stage-reference'
  # Record both native modes on the same staged desktop; no keyboard decision is sent.
  $overlay=[NativeDemo]::FindByClass('BlinkVerdict.Overlay')
  foreach ($mode in @(@{index=0;name='fullscreen'},@{index=1;name='widget'})) {
@@ -180,7 +205,7 @@ try {
    font='Noto Sans CJK SC (downloaded for capture only; not shipped with the application)';
    capture='DWM-composited desktop crops (SRCCOPY) of native settings and the visible overlay; PrintWindow fallback for settings. Synthetic gradient stage behind the overlay; no glass or blur is added in editing.';
    provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
-   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','widget contains text and background');
+   checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','widget contains text and background','fullscreen preserves the desktop outside text','widget rounded corner is transparent');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM
 } finally {
  if ($stage -ne [IntPtr]::Zero) { [void][NativeDemo]::DestroyWindow($stage) }

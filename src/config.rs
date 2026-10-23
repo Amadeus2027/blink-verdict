@@ -81,6 +81,8 @@ pub struct Theme {
     pub text_color: String,
     pub background_color: String,
     pub opacity: u8,
+    /// Alpha of the widget pane only; fullscreen never draws a background.
+    pub widget_background_opacity: u8,
     pub fullscreen_font_size: u32,
     pub widget_font_size: u32,
     pub fullscreen_duration_ms: u32,
@@ -97,6 +99,7 @@ impl Default for Theme {
             text_color: "1D1D1F".into(),
             background_color: "F4F4F7".into(),
             opacity: 244,
+            widget_background_opacity: 180,
             fullscreen_font_size: 150,
             widget_font_size: 32,
             fullscreen_duration_ms: 1500,
@@ -234,13 +237,18 @@ mod tests {
         assert!(c.validate().is_ok());
         assert_eq!(c.theme.widget_duration_ms, 0);
         c.options = vec!["进攻".into(), "撤退".into(), "等待".into()];
+        c.theme.widget_background_opacity = 0;
         c.widget_x = -1920;
         c.widget_width = 600;
         let copy: Config = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
         assert_eq!(copy.options, c.options);
+        assert_eq!(copy.theme.widget_background_opacity, 0);
         assert_eq!((copy.widget_x, copy.widget_width), (-1920, 600));
         let legacy: Config = serde_json::from_value(serde_json::json!({"provider":"OpenAi","endpoint":"https://api.openai.com/v1","model":"gpt-4o-mini"})).unwrap();
         assert_eq!(legacy.provider, Provider::OpenAi);
+        let legacy_theme: Theme = serde_json::from_str(r#"{"opacity":200}"#).unwrap();
+        assert_eq!(legacy_theme.widget_background_opacity, 180);
+        assert_eq!(legacy_theme.opacity, 200);
         assert!(legacy.validate().is_ok());
         assert!(copy.validate().is_ok());
         c.options.push("等待".into());

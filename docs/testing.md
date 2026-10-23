@@ -22,7 +22,7 @@ Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and ac
 | OCR | Installed Chinese/English OCR, no OCR language, empty text, graphic-only scene | Usable text or clear tray error; no guessed graphics interpretation |
 | Providers | Actual hosted and local decision services (System One, Decider, OpenAI Decisions), retained chat adapters, vision/OCR, refusal, probabilities, unreachable endpoint | Existing option or abstention; failures never become valid decisions |
 | Fullscreen | Short/long/custom Chinese answer, 300/1500/60000 ms, all five effects | Fits visible area, bounded lifetime, no focus/input changes |
-| Settings | Unfinished field across page switch, invalid-input error page, preset/key isolation, Done/Cancel/window-close, four-second unsaved preview, direct shortcut recording, color picker, secondary pages and Back, IME and keyboard navigation | No lost drafts, unintended saves, model requests or unreadable text |
+| Settings | Unfinished field across page switch, invalid-input error page, preset/key isolation, Done/Cancel/window-close, four-second unsaved preview, direct shortcut recording, color/font picker, secondary pages and Back, IME and keyboard navigation | No lost drafts, unintended saves, model requests or unreadable text |
 | Widget | Numeric X/Y/width/height, negative origin, reset, restart persistence, processing, error, 0/5000 ms, system blur / disabled transparency / high contrast / unsupported export, edit/lock, resize, unplug monitor | Persistent mode waits visibly; timed mode hides; fresh result timer; click-through outside edit; recovers on screen |
 | Word art | Three generated presets, both YES/NO rows, arbitrary custom labels, custom RGBA PNG, missing/oversized PNG | Correct sprite, true alpha, fallback to readable text, no idle image retention |
 | Games | At least one borderless and one exclusive candidate; record anti-cheat and game/version | Keyboard/mouse continue; no pause, focus steal, or process injection |
@@ -43,3 +43,5 @@ Targets, not measured claims: hidden host private working set ≤30 MB and mean 
 ## Current validation
 
 See `docs/validation.md` for performed checks. The Linux environment cannot validate Windows compositor, Game Bar, DPI interaction, actual focus/input or game compatibility. Cross-compilation is only a build check.
+
+Fullscreen acceptance: only glyphs/transparent word art may cover pixels; no pane, wash or dimming during entry/exit. Widget background alpha 0/180/255 must affect only its rounded pane, keep text unchanged, survive save/restart and default to 180 in legacy themes. Check both native desktop and optional Game Bar paths.

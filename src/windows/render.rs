@@ -19,7 +19,6 @@ pub struct Renderer {
     art: Option<(ID2D1Bitmap, D2D_RECT_F)>,
     hwnd: HWND,
     surface: Surface,
-    glass: bool,
 }
 
 struct Surface {
@@ -155,7 +154,6 @@ impl Renderer {
             art,
             hwnd,
             surface,
-            glass: super::glass::set(hwnd, config.mode == DisplayMode::Widget),
         })
     }
 
@@ -169,22 +167,24 @@ impl Renderer {
         let size = self.target.GetSize();
         self.target.BeginDraw();
         let widget = config.mode == DisplayMode::Widget;
-        if widget {
-            self.target.Clear(Some(&D2D1_COLOR_F {
-                r: 0.0,
-                g: 0.0,
-                b: 0.0,
-                a: 0.0,
-            }));
+        // Clear every pixel in both modes. Fullscreen owns no pane: the desktop
+        // remains visible around text and transparent PNGs, including during fades.
+        self.target.Clear(Some(&D2D1_COLOR_F {
+            r: 0.0,
+            g: 0.0,
+            b: 0.0,
+            a: 0.0,
+        }));
+        if widget && config.theme.widget_background_opacity > 0 {
             let mut tint = color(&config.theme.background_color);
-            tint.a = if self.glass { 0.42 } else { 0.94 };
+            tint.a = config.theme.widget_background_opacity as f32 / 255.0;
             let background = self.target.CreateSolidColorBrush(&tint, None)?;
             let border = self.target.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
                     r: 1.0,
                     g: 1.0,
                     b: 1.0,
-                    a: 0.68,
+                    a: tint.a * 0.68,
                 },
                 None,
             )?;
@@ -200,9 +200,6 @@ impl Renderer {
             };
             self.target.FillRoundedRectangle(&shape, &background);
             self.target.DrawRoundedRectangle(&shape, &border, 1.0, None);
-        } else {
-            self.target
-                .Clear(Some(&color(&config.theme.background_color)));
         }
         let brush = self
             .target
