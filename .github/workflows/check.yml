@@ -4,6 +4,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Run release-only acceptance and package a candidate
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -68,7 +73,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -135,3 +140,7 @@ jobs:
           git add docs/assets/showcase.gif docs/assets/showcase.mp4 docs/assets/showcase/
           git diff --cached --quiet || git commit -m "docs: record Windows native interface showcase"
           git push origin "HEAD:$BRANCH"
+
+  release-candidate:
+    if: github.event_name == 'workflow_dispatch' && inputs.release_candidate
+    uses: ./.github/workflows/release.yml
