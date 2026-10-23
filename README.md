@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/lockup.svg" alt="BlinkVerdict · 一瞬决断" width="530" />
+  <img src="docs/assets/lockup.png" alt="BlinkVerdict · 一瞬决断" width="530" />
 </p>
 
 <h3 align="center">给眼前的选择，一个答案。</h3>
@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/版本-0.1.0%20预览版-A8B9CB?style=flat-square" alt="0.1.0 预览版" />
 </p>
 
-<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="960" /></a><br/><sub>外观预览。完整短片与下载入口见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
+<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="640" /></a><br/><sub>外观预览。完整短片与下载入口见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
 
 ## 为需要做选择的那一刻
 

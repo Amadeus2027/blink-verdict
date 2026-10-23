@@ -16,5 +16,12 @@
     "fullscreen preserves the desktop outside text",
     "widget rounded corner is transparent"
   ],
-  "editing": "24-second quiet product film; 8-second README loop; native previews with sample YES. Titles, cuts, scaling and white fades only. No simulated glass, no model requests."
+  "editing": "24-second quiet product film; 8-second README loop; native previews with sample YES. Titles, cuts, scaling and white fades only. No simulated glass, no model requests.",
+  "readme_preview": {
+    "width": 640,
+    "height": 400,
+    "fps": 10,
+    "palette_colors": 80,
+    "processing": "Downscaled and requantized from the rendered GIF; full MP4 retained."
+  }
 }
