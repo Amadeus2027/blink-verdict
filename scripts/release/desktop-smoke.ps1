@@ -56,7 +56,6 @@ public static class DesktopCheck {
  }
  static Input K(ushort vk,uint flags=0,ushort scan=0) { return new Input { type=1,value=new Union { key=new Key {vk=vk,flags=flags,scan=scan} } }; }
  static void Send(Input[] inputs) { if(SendInput((uint)inputs.Length,inputs,Marshal.SizeOf<Input>())!=inputs.Length)throw new Exception("SendInput failed"); }
- public static void MenuSelect(int up) { Send(new[]{K(0x23),K(0x23,2)}); for(int i=0;i<up;i++)Send(new[]{K(0x26),K(0x26,2)}); Send(new[]{K(0x0D),K(0x0D,2)}); }
  public static void Hotkey() { Send(new[]{K(0x11),K(0x12),K(0x20),K(0x20,2),K(0x12,2),K(0x11,2)}); }
  public static void Type(char c) { Send(new[]{K(0,4,c),K(0,6,c)}); }
  public static string Text() {var s=new StringBuilder(512);GetWindowText(Edit,s,512);return s.ToString();}
@@ -67,12 +66,6 @@ public static class DesktopCheck {
 function Wait-Until([scriptblock]$Condition,[string]$Failure) {
  $deadline=(Get-Date).AddSeconds(12)
  while (-not (& $Condition)) { if ((Get-Date) -gt $deadline) { throw $Failure }; Start-Sleep -Milliseconds 80 }
-}
-function Tray-Command([IntPtr]$Window,[int]$Up) {
- if (-not [DesktopCheck]::PostMessage($Window,0x8001,[IntPtr]1,[IntPtr]0x205)) {throw 'Could not open the tray menu.'}
- Wait-Until {[DesktopCheck]::FindByClass('#32768') -ne [IntPtr]::Zero} 'Tray menu did not open.'
- [DesktopCheck]::MenuSelect($Up)
- Wait-Until {[DesktopCheck]::FindByClass('#32768') -eq [IntPtr]::Zero} 'Tray menu did not close.'
 }
 if ([DesktopCheck]::FindByClass('BlinkVerdict.Host') -ne [IntPtr]::Zero) {throw 'Close the existing instance before release validation.'}
 New-Item -ItemType Directory -Force $Output | Out-Null
@@ -102,7 +95,6 @@ try {
   $hostWindow=[DesktopCheck]::FindByClass('BlinkVerdict.Host')
   $overlay=[DesktopCheck]::FindByClass('BlinkVerdict.Overlay')
   if ([DesktopCheck]::ProcessId($hostWindow) -ne $app.Id) {throw 'Harness attached to another process.'}
-  Tray-Command $hostWindow 3
   if ($mode -eq 'Fullscreen') {
    Write-Host 'Sampling fresh hidden host'
    $samples.fresh=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
@@ -131,13 +123,13 @@ try {
    $samples.widget=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
    $samples.widget|ConvertTo-Json|Set-Content "$Output/widget.json" -Encoding utf8NoBOM
   }
-  Tray-Command $hostWindow 3
   if ($mode -eq 'Fullscreen') {
+   Wait-Until {-not [DesktopCheck]::IsWindowVisible($overlay)} 'Timed result did not hide.'
    Write-Host 'Sampling hidden host after use'
    $samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
    $samples.after_use|ConvertTo-Json|Set-Content "$Output/after-use.json" -Encoding utf8NoBOM
   }
-  Tray-Command $hostWindow 0
+  if (-not [DesktopCheck]::PostMessage($hostWindow,0x10,[IntPtr]::Zero,[IntPtr]::Zero)) {throw 'Could not request standard window close.'}
   if (-not $app.WaitForExit(8000)) {
    $app.Refresh()
    throw "Native host did not exit: alive=$(-not $app.HasExited), host=$([DesktopCheck]::FindByClass('BlinkVerdict.Host')), overlay=$([DesktopCheck]::FindByClass('BlinkVerdict.Overlay'))"
@@ -147,7 +139,7 @@ try {
  foreach ($name in @('fresh','after_use')) {
   if ($samples[$name].MeanPrivateWorkingSetMB -gt 30 -or $samples[$name].CPUPercentOfMachine -ge 0.1) {throw "Hidden host resource target exceeded: $name"}
  }
- @{source_commit=$env:GITHUB_SHA;os=[Environment]::OSVersion.VersionString;recording_mode=$false;provider='loopback OpenAI-compatible synthetic fixture';requests=$requests;checks=@('real shortcut and PNG capture in both modes','busy repeat suppressed','foreground preserved','keyboard input delivered','mouse clicks pass through','clean process exit');samples=$samples;limits='Synthetic desktop only; no game, real provider, OCR, multi-monitor or endurance certification.'} | ConvertTo-Json -Depth 8 | Set-Content "$Output/desktop.json" -Encoding utf8NoBOM
+ @{source_commit=$env:GITHUB_SHA;os=[Environment]::OSVersion.VersionString;recording_mode=$false;provider='loopback OpenAI-compatible synthetic fixture';requests=$requests;checks=@('real shortcut and PNG capture in both modes','busy repeat suppressed','foreground preserved','keyboard input delivered','mouse clicks pass through','clean process exit after WM_CLOSE');samples=$samples;limits='Synthetic desktop only; tray-menu navigation, games, real providers, OCR, multi-monitor and endurance are outside this check.'} | ConvertTo-Json -Depth 8 | Set-Content "$Output/desktop.json" -Encoding utf8NoBOM
 } finally {
  $env:LOCALAPPDATA=$originalData
  if ($app -and -not $app.HasExited) {Stop-Process -Id $app.Id -Force}
