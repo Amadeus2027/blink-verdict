@@ -31,6 +31,14 @@ gh workflow run check.yml --ref YOUR_CANDIDATE_BRANCH -f release_candidate=true
 gh release create v0.1.0-rc.1 --draft --prerelease --target CANDIDATE_COMMIT --title "BlinkVerdict 0.1.0-rc.1" --notes-file docs/releases/0.1.0-rc.1-notes.md PATH_TO_ZIP PATH_TO_SHA256SUMS
 ```
 
+若本地连接不能上传附件，可在草稿已存在时通过仓库令牌归档已验证的产物，无需重跑测试：
+
+```powershell
+gh workflow run check.yml --ref YOUR_CANDIDATE_BRANCH -f upload_only=true -f source_run=SUCCESSFUL_CANDIDATE_RUN_ID
+```
+
+该路径重新核对 ZIP / 内部摘要、版本、架构及草稿目标提交，只向匹配的现有 draft prerelease 添加附件，不创建或公开发行，也不覆盖同名附件。发行结果仍以验收记录和源构建为准。
+
 ## 稳定版验收
 
 逐项完成 [测试清单](../testing.md)与真实 Windows 10/11、模型和游戏验证，记录环境和异常。未完成的项目不能勾选。源码、包、验证记录必须对应同一候选；若修改运行时代码，重建候选并重跑受影响检查。
