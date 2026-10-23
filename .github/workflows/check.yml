@@ -158,5 +158,5 @@ jobs:
       actions: read
     uses: ./.github/workflows/release.yml
     with:
-      upload_only: ${{ inputs.upload_only || false }}
-      source_run: ${{ inputs.source_run || 0 }}
+      upload_only: ${{ inputs.upload_only == true || inputs.upload_only == 'true' }}
+      source_run: ${{ fromJSON(inputs.source_run || '0') }}
