@@ -33,6 +33,7 @@ pub unsafe fn set(hwnd: HWND, enabled: bool) -> bool {
             Some(&mut size),
         );
         if result.is_ok() && transparency == 0 {
+            set(hwnd, false);
             return false;
         }
         let mut contrast = HIGHCONTRASTW {
@@ -48,6 +49,7 @@ pub unsafe fn set(hwnd: HWND, enabled: bool) -> bool {
         if contrast.dwFlags.0 & HCF_HIGHCONTRASTON.0 != 0
             || !DwmIsCompositionEnabled().is_ok_and(|v| v.as_bool())
         {
+            set(hwnd, false);
             return false;
         }
     }

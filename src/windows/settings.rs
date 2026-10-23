@@ -349,7 +349,7 @@ impl Settings {
             self.button(parent, BACK, "‹", 36, 94, 44, 42);
         }
         if self.page != 5 {
-            self.button(parent, 215, "···", 680, 28, 44, 42);
+            self.button(parent, 215, "…", 680, 28, 44, 42);
         }
         self.button(parent, CLOSE, "×", 738, 28, 40, 42);
         let mut c = self.draft.clone();
@@ -386,13 +386,13 @@ impl Settings {
                     24,
                 );
                 self.section(parent, "你的决策", 378);
-                self.edit(parent, 302, "想判断什么", &c.prompt, 408, 108);
+                self.edit(parent, 302, "想判断什么", &c.prompt, 408, 140);
                 self.edit(parent, 303, "答案选项", &c.options.join("\r\n"), 532, 106);
                 self.label(
                     parent,
                     "每行一个答案。证据不足时会显示“无法判断”。",
                     58,
-                    650,
+                    716,
                     680,
                     28,
                 );
@@ -804,13 +804,6 @@ impl Settings {
             visual::TEXT,
             DT_CENTER | DT_SINGLELINE | DT_VCENTER,
         );
-        visual::rounded(
-            dc,
-            self.rect(210, 88, 380, 54),
-            COLORREF(0x00EEEAE6),
-            COLORREF(0x00EEEAE6),
-            (52.0 * self.scale) as i32,
-        );
         for (x, y, w, h) in &self.cards {
             visual::rounded(
                 dc,
@@ -870,11 +863,7 @@ impl Settings {
         let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
         let primary = id == SAVE || id == NEXT;
         let combo = item.CtlType == ODT_COMBOBOX;
-        let on_card =
-            combo || id == 329 || matches!(id, 213 | 214 | 217 | EDIT_WIDGET | RESET_WIDGET | 218);
-        let background = if tab {
-            COLORREF(0x00EEEAE6)
-        } else if on_card {
+        let background = if combo || id == 329 {
             visual::FIELD
         } else {
             visual::BACKGROUND
@@ -888,6 +877,11 @@ impl Settings {
             visual::FIELD
         } else if pressed {
             COLORREF(0x00E9E6E3)
+        } else if matches!(
+            id,
+            BACK | CLOSE | 215 | PREVIEW | 213 | 214 | 217 | 218 | EDIT_WIDGET | RESET_WIDGET
+        ) {
+            visual::FIELD
         } else {
             background
         };
@@ -899,6 +893,11 @@ impl Settings {
                 fill,
                 ((if tab { 34.0 } else { 28.0 }) * self.scale) as i32,
             );
+        }
+        if id == 217 {
+            let mut top = item.rcItem;
+            top.bottom = (top.top + top.bottom) / 2;
+            FillRect(item.hDC, &top, self.style.field);
         }
         let label = if combo {
             self.choice_labels
@@ -932,14 +931,16 @@ impl Settings {
             item.hDC,
             &label,
             rect,
-            if primary {
+            if matches!(id, BACK | CLOSE) {
+                self.style.title
+            } else if primary {
                 self.style.strong
             } else {
                 self.style.font
             },
             if primary {
                 visual::FIELD
-            } else if disabled || id == CLEAR_KEY {
+            } else if disabled || id == CLEAR_KEY || (tab && !selected) {
                 visual::MUTED
             } else {
                 visual::TEXT
@@ -1565,6 +1566,13 @@ pub(super) unsafe extern "system" fn window_proc(
                         ));
                         let _ = SetWindowTextW(ui.hwnd(field), PCWSTR(value.as_ptr()));
                     }
+                }
+                1 if app
+                    .settings_ui
+                    .as_ref()
+                    .is_some_and(|ui| ui.onboarding && ui.page == 1) =>
+                {
+                    SendMessageW(hwnd, WM_COMMAND, WPARAM(NEXT), LPARAM(0));
                 }
                 SAVE | 1 => {
                     save(app, true);

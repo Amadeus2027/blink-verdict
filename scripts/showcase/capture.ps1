@@ -15,7 +15,7 @@ public static class NativeDemo {
  [DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr target,int x,int y,int width,int height,IntPtr source,int sx,int sy,uint operation);
  public static bool CaptureDesktop(IntPtr target,int x,int y,int width,int height) {
   var screen=GetDC(IntPtr.Zero);
-  try { return screen!=IntPtr.Zero && BitBlt(target,0,0,width,height,screen,x,y,0x40CC0020); }
+  try { return screen!=IntPtr.Zero && BitBlt(target,0,0,width,height,screen,x,y,0x00CC0020); }
   finally { if(screen!=IntPtr.Zero)ReleaseDC(IntPtr.Zero,screen); }
  }
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -178,7 +178,7 @@ try {
    kind='Windows native application capture, editorial presentation';
    source_commit=$env:GITHUB_SHA; os=[Environment]::OSVersion.VersionString;
    font='Noto Sans CJK SC (downloaded for capture only; not shipped with the application)';
-   capture='Desktop crops of the native settings and actual visible overlay; PrintWindow fallback for settings. Synthetic gradient stage behind the overlay; no glass or blur is added in editing.';
+   capture='DWM-composited desktop crops (SRCCOPY) of native settings and the visible overlay; PrintWindow fallback for settings. Synthetic gradient stage behind the overlay; no glass or blur is added in editing.';
    provider_requests=0; credentials_used=$false; recording_mode='--recordable-preview permits recording and disables decision triggers';
    checks=@('unfinished field survives page navigation','preview does not save draft mode','changing endpoint clears unsaved key','both native preview modes visible','widget contains text and background');
  } | ConvertTo-Json -Depth 4 | Set-Content "$Output/provenance.json" -Encoding utf8NoBOM

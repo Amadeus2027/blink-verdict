@@ -925,7 +925,7 @@ unsafe extern "system" fn overlay_proc(
             }
             LRESULT(0)
         }
-        WM_SIZE => {
+        WM_SIZE | WM_SETTINGCHANGE => {
             app.renderer = None;
             let _ = InvalidateRect(hwnd, None, false);
             LRESULT(0)

@@ -1,33 +1,39 @@
-# Native interface showcase
+# 看看答案如何浮现
 
-![Native interface showcase](assets/showcase.gif)
+![BlinkVerdict：一次按键，两种显示方式](assets/showcase.gif)
 
-The showcase uses the actual Windows Rust executable. The media pipeline records native settings pages through desktop cropping of the foreground window when available (Win32 PrintWindow fallback), plus a short sequence of native overlay frames, then adds titles, cuts and fades. It does not render an HTML replica or generate a pretend screenshot.
+给眼前的选择，一个答案。
 
-The recorder refuses to attach to an existing resident instance and verifies ownership of the new host window. It starts the application with the explicit `--recordable-preview` flag: decision triggers are disabled and the overlay is permitted in recording. Ordinary launches retain capture exclusion. A temporary solid native window provides the backdrop; desktop crops include layered windows with `CAPTUREBLT`.
+短片以舒缓的镜头展示一次按键、全屏浮现与常驻浮窗，再看一眼属于你的决策与外观设置。README 中保留约八秒的静音循环，完整产品短片约二十四秒。
 
-The demonstration uses isolated synthetic preferences and a sample YES result from the application's preview action. It never triggers screenshot/OCR or a model request, reads no user credentials, and does not demonstrate model reasoning quality or real game compatibility. Recording does not reliably reproduce desktop-compositor blur; actual acrylic depends on Windows/DWM availability, and unsupported environments use the opaque fallback.
+演示使用软件内置的外观预览，YES 是示例答案，没有向模型发送画面。玻璃背景由录制机的 Windows 合成器提供，实际效果随系统与透明设置而变化。
 
-The approximately 12-second GIF is embedded in the root README. [Recording workflow](https://github.com/Amadeus2027/blink-verdict/actions/runs/39829350117) · [MP4/GIF download](https://github.com/Amadeus2027/blink-verdict/actions/runs/39829350117/artifacts/12448755634). The MP4 and original frame sequence are available from the successful recording workflow's artifacts (subject to Actions retention). [Capture provenance](assets/showcase/provenance.json) records the exact source commit, Windows build, capture path and checks. The source PNGs in `docs/assets/showcase/` allow inspection without pausing the GIF.
+完整短片可在本次录制任务的 `native-ui-showcase-video` 下载项中获取，需要登录 GitHub；下载链接将在录制完成后更新。
 
-To refresh the recording, manually run the existing **Windows build and core checks** workflow on the target branch. Push / PR events run only the usual minimal native checks. Manual dispatch instead runs the capture on Windows 2025 and editorial export on Ubuntu. The workflow:
+<details>
+<summary>录制来源与复现方式</summary>
 
-1. Builds and runs the native application, installs an open Noto Sans CJK SC font on the capture runner only, and opens settings through the tray entry point.
-2. Captures five settings pages, verifies an unfinished shortcut survives navigation and an endpoint change clears an unsaved key, and records a two-second unsaved widget preview. Checks the on-disk display mode did not change.
-3. Exports a short MP4 and a looping 12 fps GIF with editorial titles / fades. Source screenshots and provenance remain beside the README asset for review.
-4. Commits the generated GIF, settings screenshots and provenance to the same branch. The MP4 is available as an Actions artifact; it is not included in the portable application.
+所有界面均来自真实的 Windows Rust 程序。源截图位于 [showcase](assets/showcase/01-decision.png)，[来源记录](assets/showcase/provenance.json) 保存源提交、操作系统、字体、采集方式和检查结果。
 
-Local equivalents:
+采集在独立的临时配置中运行，使用 `--recordable-preview` 禁用决策触发并允许录制浮层；普通启动仍排除自身截图。录制脚本拒绝连接已有的常驻实例，并检查窗口归属。无需真实密钥，不触发截图决策、OCR、模型或 Game Bar。
+
+临时原生窗口提供浅色渐变背景，真实浮层显示在其上。剪辑只加入字幕、裁切、缩放与淡白转场，不在后期伪造玻璃、模糊或应用状态。静态设置镜头与预览序列均为演示画面，不代表游戏兼容或性能验证。
+
+手动运行 **Windows build and core checks** 工作流，可重新采集并导出。日常 push / PR 仍只运行最小核心检查。字体仅安装在录制环境，文档素材不加入程序便携包。
+
+本地需要 PowerShell 7、可用的 Windows 桌面及 GDI。先退出已有实例，在临时桌面会话中运行，并将 `RUNNER_TEMP` 指向临时目录：
 
 ```powershell
 cargo build --locked --release
 ./scripts/showcase/capture.ps1
 ```
 
+编辑阶段需要 FFmpeg 与中文字体：
+
 ```bash
-python3 scripts/showcase/render.py showcase-frames showcase-edit
+python3 scripts/showcase/render.py showcase-frames showcase-edit /path/to/CJK-font.otf
 ```
 
-Windows capture requires PowerShell 7, an available desktop and GDI. Close any running BlinkVerdict instance first; run in a disposable desktop session. The script downloads its capture-only font and uses `$env:RUNNER_TEMP` for synthetic configuration (set it to a temporary directory for local use). Editorial rendering requires FFmpeg on Linux. This is a documentation workflow, not a routine test suite, a performance benchmark or a live-provider integration test. The GIF and source frames are repository documentation only; the application ZIP still contains only the EXE, quick-start and changelog.
+</details>
 
-Interaction references: [Rainmeter Manage](https://docs.rainmeter.net/manual/user-interface/manage/), [ShareX Pin to Screen](https://getsharex.com/docs/pin-to-screen), [PowerToys Always On Top](https://learn.microsoft.com/en-us/windows/powertoys/always-on-top). The software keeps its own design and passive-input requirements.
+设计参考：[Apple 材质](https://developer.apple.com/design/human-interface-guidelines/materials)、[Things](https://culturedcode.com/things/)、[Raycast](https://www.raycast.com/blog/the-new-raycast)。主视觉以用户提供的 ChatGPT iOS 截图为准。
