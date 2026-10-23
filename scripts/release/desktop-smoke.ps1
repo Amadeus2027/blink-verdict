@@ -30,7 +30,8 @@ public static class DesktopCheck {
  [DllImport("user32.dll")] static extern IntPtr SetFocus(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
- [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string cls,string title);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern IntPtr FindWindow(string cls,string title);
+ public static IntPtr FindByClass(string cls) { return FindWindow(cls,null); }
  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wp,IntPtr lp);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr h,StringBuilder text,int count);
@@ -65,7 +66,7 @@ function Wait-Until([scriptblock]$Condition,[string]$Failure) {
  $deadline=(Get-Date).AddSeconds(12)
  while (-not (& $Condition)) { if ((Get-Date) -gt $deadline) { throw $Failure }; Start-Sleep -Milliseconds 80 }
 }
-if ([DesktopCheck]::FindWindow('BlinkVerdict.Host',$null) -ne [IntPtr]::Zero) {throw 'Close the existing instance before release validation.'}
+if ([DesktopCheck]::FindByClass('BlinkVerdict.Host') -ne [IntPtr]::Zero) {throw 'Close the existing instance before release validation.'}
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Output=(Resolve-Path $Output).Path
 $originalData=$env:LOCALAPPDATA
@@ -84,14 +85,23 @@ try {
  $expected='';$requests=0;$samples=@{}
  foreach ($mode in @('Fullscreen','Widget')) {
   @{mode=$mode;provider='OpenAi';endpoint="http://127.0.0.1:$port/v1";model='synthetic-fixture';prompt='release-desktop-fixture';hotkey='Ctrl+Alt+Space';options=@('YES','NO');vision=$true;widget_x=60;widget_y=80;widget_width=480;widget_height=300;theme=@{animation='None';fullscreen_duration_ms=3000;widget_duration_ms=0}} | ConvertTo-Json -Depth 5 | Set-Content "$data/BlinkVerdict/config.json" -Encoding utf8NoBOM
-  $app=Start-Process (Resolve-Path $Executable) -PassThru
-  Wait-Until {[DesktopCheck]::FindWindow('BlinkVerdict.Host',$null) -ne [IntPtr]::Zero} 'Native host did not start.'
-  $hostWindow=[DesktopCheck]::FindWindow('BlinkVerdict.Host',$null)
-  $overlay=[DesktopCheck]::FindWindow('BlinkVerdict.Overlay',$null)
+  Write-Host "Checking native $mode mode"
+  $app=Start-Process (Resolve-Path $Executable) -PassThru -RedirectStandardError "$Output/native-$mode-stderr.txt"
+  Wait-Until {
+   $app.Refresh();if ($app.HasExited) {throw "Native host exited: $($app.ExitCode)"}
+   [DesktopCheck]::FindByClass('BlinkVerdict.Host') -ne [IntPtr]::Zero
+  } 'Native host did not start.'
+  $hostWindow=[DesktopCheck]::FindByClass('BlinkVerdict.Host')
+  $overlay=[DesktopCheck]::FindByClass('BlinkVerdict.Overlay')
   if ([DesktopCheck]::ProcessId($hostWindow) -ne $app.Id) {throw 'Harness attached to another process.'}
   [void][DesktopCheck]::SendMessage($hostWindow,0x111,[IntPtr]108,[IntPtr]::Zero)
-  if ($mode -eq 'Fullscreen') {$samples.fresh=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60}
+  if ($mode -eq 'Fullscreen') {
+   Write-Host 'Sampling fresh hidden host'
+   $samples.fresh=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.fresh|ConvertTo-Json|Set-Content "$Output/fresh.json" -Encoding utf8NoBOM
+  }
   for ($i=0;$i -lt 3;$i++) {
+   Write-Host "Checking $mode decision $i"
    if (-not [DesktopCheck]::SetForegroundWindow([DesktopCheck]::Window)) {throw 'Cannot foreground the synthetic input receiver.'}
    [void][DesktopCheck]::SendMessage([DesktopCheck]::Window,0x8001,[IntPtr]::Zero,[IntPtr]::Zero)
    [DesktopCheck]::Type('a');$expected+='a'
@@ -108,9 +118,17 @@ try {
    [DesktopCheck]::Click();Start-Sleep -Milliseconds 100
    if ([DesktopCheck]::Clicks -ne $clicks+1) {throw 'Mouse input did not pass through the overlay.'}
   }
-  if ($mode -eq 'Widget') {$samples.widget=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60}
+  if ($mode -eq 'Widget') {
+   Write-Host 'Sampling visible widget'
+   $samples.widget=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.widget|ConvertTo-Json|Set-Content "$Output/widget.json" -Encoding utf8NoBOM
+  }
   [void][DesktopCheck]::SendMessage($hostWindow,0x111,[IntPtr]108,[IntPtr]::Zero)
-  if ($mode -eq 'Fullscreen') {$samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60}
+  if ($mode -eq 'Fullscreen') {
+   Write-Host 'Sampling hidden host after use'
+   $samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.after_use|ConvertTo-Json|Set-Content "$Output/after-use.json" -Encoding utf8NoBOM
+  }
   [void][DesktopCheck]::SendMessage($hostWindow,0x111,[IntPtr]105,[IntPtr]::Zero)
   if (-not $app.WaitForExit(5000)) {throw 'Native host did not exit.'}
   if ($app.ExitCode -ne 0) {throw 'Native host exited unsuccessfully.'}
