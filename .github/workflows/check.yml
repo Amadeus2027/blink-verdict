@@ -4,6 +4,19 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_candidate:
+        description: Run release-only acceptance and package a candidate
+        type: boolean
+        default: false
+      upload_only:
+        description: Attach a validated candidate to an existing draft; never publish
+        type: boolean
+        default: false
+      source_run:
+        description: Successful candidate workflow run ID for attachment
+        type: number
+        default: 0
 permissions:
   contents: read
 concurrency:
@@ -44,13 +57,15 @@ jobs:
         run: |
           $binary = Get-Item target/release/blink-verdict.exe
           "Native executable: $($binary.Length) bytes" | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-      - name: Package development build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Package development build with licenses
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Copy-Item target/release/blink-verdict.exe, CHANGELOG.md -Destination dist
-          Copy-Item docs/portable.md -Destination dist/README.md
-          Compress-Archive -Path dist/* -DestinationPath blink-verdict-windows-x64-preview.zip
+          python scripts/release/package.py --development
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item dist/blink-verdict-windows-x64-preview.zip .
       - uses: actions/upload-artifact@v4
         with:
           name: blink-verdict-windows-x64-preview
@@ -68,7 +83,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -135,3 +150,13 @@ jobs:
           git add docs/assets/showcase.gif docs/assets/showcase.mp4 docs/assets/showcase/
           git diff --cached --quiet || git commit -m "docs: record Windows native interface showcase"
           git push origin "HEAD:$BRANCH"
+
+  release-candidate:
+    if: github.event_name == 'workflow_dispatch' && (inputs.release_candidate || inputs.upload_only)
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/release.yml
+    with:
+      upload_only: ${{ inputs.upload_only == true || inputs.upload_only == 'true' }}
+      source_run: ${{ fromJSON(inputs.source_run || '0') }}

@@ -1,6 +1,14 @@
 # Changelog
 
-## 0.1.0 — Unreleased development preview
+## 0.1.0-rc.1 — Candidate in preparation
+
+- Release-only Windows validation, real desktop shortcut/capture/input checks, hidden/visible resource samples, allowlisted ZIP, source manifest, SHA-256 and third-party license texts.
+- MIT project license; clearer download, upgrade, privacy and compatibility documentation.
+- Reject a failed overlay bitmap selection and release the allocated GDI objects.
+
+The candidate is not a stable release. Live services, consumer Windows/game compatibility and long-duration acceptance remain unverified.
+
+### Included development work
 
 - Capture owns its GDI frame through RAII and encodes from a borrowed slice, avoiding an extra full-screen pixel vector. Release capture handles before OCR recognition/network waits; release raw response bytes after JSON parsing.
 - Separate settings state/events, page layouts and native controls. Remove the unreachable Apply command and its duplicate save/rebuild path; retain every used local/API adapter and saved protocol key.
@@ -13,7 +21,7 @@
 - Done saves and closes, Cancel discards, and the window close button offers to save unfinished work. Draft fields survive navigation; the four-second preview reads no screen and calls no model.
 - Text-only transparent fullscreen output; only the widget has a rounded pane, with independent 0–100% background opacity. The optional Game Bar component follows the same rules.
 - Remove the accent-policy experiment after native capture exposed gray panes/black corners. Keep correct per-pixel alpha, light defaults and existing preferences; no webview, frame polling or new runtime package.
-- Product-focused interface, tray, README and portable copy. A calm 24-second native product film and a separate eight-second README loop replace the page-by-page tour.
+- Product-focused interface, tray, README and portable copy. The original UI film was superseded by the comprehensive 39-second film and 26-second README preview.
 
 - Native tray host, configurable global shortcut and single-instance startup.
 - Passive fullscreen and click-through widget rendering, shared theme and independent lifetimes.

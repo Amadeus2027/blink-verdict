@@ -6,11 +6,12 @@ The default Windows workflow checks formatting, runs these five tests on Windows
 
 ## Before every release
 
-Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and actual evidence. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
+Use the [release preparation workflow](releases/README.md) and create a record from `docs/releases/TEMPLATE.md` with the candidate commit and actual evidence. The workflow is manual and does not expand daily CI. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
 
 1. `cargo fmt --all -- --check`, `cargo test --locked --lib`, `cargo build --locked --release` on Windows.
 2. `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all ten protocol adapters / variants and both input routes, credentials in headers, keep-alive unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
-3. Run the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
+3. The release-only workflow additionally checks the real registered shortcut, PNG capture, loopback choice, busy repeat suppression, foreground/keyboard/mouse delivery on a synthetic receiver, and 60-sample hidden-fresh/hidden-after-use/visible-widget metrics. These do not certify games, live services or endurance.
+4. Run the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
 
 ## Windows manual matrix (stored outside daily tests)
 
