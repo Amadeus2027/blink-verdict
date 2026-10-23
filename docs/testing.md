@@ -28,7 +28,7 @@ Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and ac
 | Games | At least one borderless and one exclusive candidate; record anti-cheat and game/version | Keyboard/mouse continue; no pause, focus steal, or process injection |
 | Game Bar | Not installed, wrong family, closed/unpinned/non-click-through, both sizes/modes, background alpha 0/180/255, all effects, disconnect | Reject unsafe/unavailable display; no panel launch; host foreground unchanged |
 | Secrets | Restart, separate endpoints/providers, replace/delete key, invalid config, failed save | No plaintext key in config/logs; original config survives interrupted save |
-| Resource lifecycle | Repeated trigger/hide, settings open/close, cancellation by exit, monitor changes | No monotonic private/GDI/USER handle growth; idle render timers stop |
+| Resource lifecycle | Capture allocation/selection/copy failure, borrowed-DIB encode, release before OCR recognition/network, repeated trigger/hide, settings open/close, cancellation by exit, monitor changes | No monotonic private/GDI/USER handle growth; idle render timers stop |
 
 ### Focus/input check
 

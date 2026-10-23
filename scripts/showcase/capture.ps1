@@ -65,7 +65,7 @@ function Capture([IntPtr]$Window,[string]$Name) {
   Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-2)} -ErrorAction SilentlyContinue | Where-Object {$_.Message -match 'blink-verdict'} | Select-Object -First 2 -ExpandProperty Message | Write-Host
   throw "No window rectangle for $Name; process exited=$($app.HasExited), exit code=$($app.ExitCode)."
  }
- $isOverlay=$Name -like 'widget-*' -or $Name -like 'fullscreen-*' -or $Name -eq 'stage-reference'
+ $isOverlay=$Name -like 'widget-*' -or $Name -like 'fullscreen-*' -or $Name -eq 'stage-reference' -or $Name -like 'art-*'
  if (-not $isOverlay) {
   $visibleFrame=New-Object NativeDemo+Rect
   if ([NativeDemo]::DwmGetWindowAttribute($Window,9,[ref]$visibleFrame,16) -eq 0 -and $visibleFrame.Right -gt $visibleFrame.Left) { $rect=$visibleFrame }
@@ -162,6 +162,11 @@ try {
  Send-Command $settings 216
  Start-Sleep -Milliseconds 180
  Capture $settings '08-connection'
+ Send-Command $settings 211
+ [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,311),0x14E,[IntPtr]14,[IntPtr]::Zero)
+ [void][NativeDemo]::SendMessage($settings,0x111,[IntPtr](311 -bor (1 -shl 16)),[NativeDemo]::GetDlgItem($settings,311))
+ Start-Sleep -Milliseconds 180
+ Capture $settings '09-local'
  # Preview a widget using the current draft, without applying its mode to disk.
  Send-Command $settings 210
  Set-Text $settings 301 'Ctrl+Alt+Space'
@@ -196,6 +201,24 @@ try {
    Start-Sleep -Milliseconds 35
   }
   if ($written -lt 12) {throw "Too few visible native preview frames: $written"}
+ }
+ foreach ($style in @(@{index=1;name='clear'},@{index=2;name='glass'},@{index=3;name='script'})) {
+  Send-Command $settings 210
+  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,300),0x14E,[IntPtr]0,[IntPtr]::Zero)
+  Send-Command $settings 213
+  [void][NativeDemo]::SendMessage([NativeDemo]::GetDlgItem($settings,340),0x14E,[IntPtr]$style.index,[IntPtr]::Zero)
+  Send-Command $settings 201
+  Start-Sleep -Milliseconds 360
+  Capture $stage ('art-'+$style.name)
+  Send-Command $hostWindow 108
+ }
+ # A short development sample of the hidden host; not the release endurance gate.
+ Send-Command $settings 202
+ Send-Command $hostWindow 108
+ try {
+  & "$PSScriptRoot/../measure-idle.ps1" -Seconds 10 | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
+ } catch {
+  @{ unavailable=$_.Exception.Message } | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
  }
  $disk=Get-Content "$demoData/BlinkVerdict/config.json" -Raw | ConvertFrom-Json
  if ($disk.mode -ne 'Fullscreen') {throw 'Preview unexpectedly persisted the draft.'}
