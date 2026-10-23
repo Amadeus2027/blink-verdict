@@ -13,9 +13,11 @@ Environment: Linux, Rust stable, x86_64-pc-windows-gnu standard library.
 
 ## Windows evidence
 
-Native build and capture links will be recorded here when this iteration's runs finish. The recording uses synthetic settings and sample previews, verifies retained unfinished input, clearing an unsaved key on endpoint changes, both native display modes, and text/background in the visible widget. This is limited GUI evidence on the runner, not a game or performance benchmark.
+[Native recording run](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934), source `a325c11`, Windows 11 build 26100: five Windows core tests, release build, native capture and video export passed. The recording uses synthetic settings and sample previews, verifies retained unfinished input, clearing an unsaved key on endpoint changes, preview isolation and both native display modes. Pixel comparisons confirm fullscreen surroundings preserve the desktop and widget rounded corners are transparent.
 
-The normal workflow still runs five Windows core tests and builds/packages a portable executable. Game Bar rendering changed to match transparent fullscreen and independent widget alpha, so the optional UWP build is required for this iteration.
+Reviewed the captured decision/appearance/detail pages and frames from both modes: YES/NO are both visible, the background control fits, fullscreen text has no pane, and the widget has no gray block or black corners. The README GIF is 960 × 600, 8.12 seconds and 1,549,888 bytes; the film is approximately 24 seconds. [Download media](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934/artifacts/12495122025) (GitHub login; retained for the Actions artifact lifetime). This is limited GUI evidence on the runner, not a game or performance benchmark.
+
+The normal workflow runs five Windows core tests and builds/packages a portable executable. Game Bar rendering changed to match transparent fullscreen and independent widget alpha, so the optional UWP build is required for this iteration. Native build/package and optional-component results are available in the [PR checks](https://github.com/Amadeus2027/blink-verdict/pull/4/checks).
 
 ## Release gates still unverified
 

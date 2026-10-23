@@ -8,7 +8,7 @@
 
 演示使用软件内置的外观预览，YES 是示例答案，没有向模型发送画面。全屏只显示文字，常驻浮窗使用可调半透明圆角背景；当前不包含背景模糊。
 
-完整短片可在本次录制任务的 `native-ui-showcase-video` 下载项中获取，需要登录 GitHub；下载链接将在录制完成后更新。
+**[下载完整产品短片](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934/artifacts/12495122025)**（需登录 GitHub）。下载项内含 MP4、README GIF 与来源记录；Actions 下载项有保留期限。
 
 <details>
 <summary>录制来源与复现方式</summary>

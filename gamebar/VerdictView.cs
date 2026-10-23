@@ -21,7 +21,6 @@ namespace BlinkVerdict.GameBar
         private readonly Border pane = new Border { CornerRadius = new CornerRadius(24), IsHitTestVisible = false };
         private readonly Grid content = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RenderTransformOrigin = new Point(0.5, 0.5) };
         private readonly CompositeTransform transform = new CompositeTransform();
-        private readonly TextBlock title = new TextBlock { Text = "B L I N K V E R D I C T", FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12, 8, 12, 0) };
         private readonly TextBlock result = new TextBlock { TextAlignment = TextAlignment.Center };
         private readonly Image art = new Image { Stretch = Stretch.Fill, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
         private readonly TextBlock footer = new TextBlock { FontSize = 10, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(12, 0, 12, 8) };
@@ -95,9 +94,9 @@ namespace BlinkVerdict.GameBar
             result.FontFamily = new FontFamily(message.GetNamedString("font"));
             result.FontSize = message.GetNamedNumber("fontSize") / scale;
             result.Foreground = new SolidColorBrush(ColorFromHex(message.GetNamedString("textColor")));
-            title.Foreground = footer.Foreground = new SolidColorBrush(Color.FromArgb(255, 166, 168, 178));
-            title.FontFamily = footer.FontFamily = result.FontFamily;
-            title.Visibility = footer.Visibility = fullscreen ? Visibility.Collapsed : Visibility.Visible;
+            footer.Foreground = new SolidColorBrush(Color.FromArgb(255, 166, 168, 178));
+            footer.FontFamily = result.FontFamily;
+            footer.Visibility = fullscreen ? Visibility.Collapsed : Visibility.Visible;
             fit.Margin = fullscreen ? new Thickness(24) : new Thickness(20, 12, 20, 28);
             footer.Text = message.GetNamedString("hotkey");
             await SetArtAsync(message, action == "show");

@@ -39,7 +39,7 @@ namespace BlinkVerdict.GameBar
             // Normal Start-menu launch is an explicit setup action, not a decision trigger.
             Window.Current.Content = new TextBlock
             {
-                Text = "BlinkVerdict Game Bar（实验性）\n\n按 Win+G，在组件菜单打开 BlinkVerdict，固定并开启点击穿透。\n\n将以下包家族名填写到主程序 → 关于 / 状态：\n" + Package.Current.Id.FamilyName,
+                Text = "BlinkVerdict Game Bar（实验性）\n\n按 Win+G，在组件菜单打开 BlinkVerdict，固定并开启点击穿透。\n\n将以下包家族名填写到主程序 → 设置 → … → 游戏中的显示：\n" + Package.Current.Id.FamilyName,
                 Margin = new Thickness(28), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true
             };
             Window.Current.Activate();
