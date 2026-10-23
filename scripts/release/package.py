@@ -16,7 +16,6 @@ development = sys.argv[1:] == ['--development']
 if sys.argv[1:] and not development:
     raise SystemExit('Usage: package.py [--development]')
 if not development and '-rc.' not in version:
-
     raise SystemExit('This preparation workflow only packages release candidates. Complete stable gates first.')
 name = 'blink-verdict-windows-x64-preview' if development else f'blink-verdict-{version}-windows-x64'
 stage = Path('dist') / name

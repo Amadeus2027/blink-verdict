@@ -217,11 +217,10 @@ try {
   Send-Command $settings 201
   Start-Sleep -Milliseconds 360
   Capture $stage ('art-'+$style.name)
-  Send-Command $hostWindow 108
+  Send-Command $settings 2
  }
  # Release callers require a full sample; ordinary recording keeps the short development sample.
  Send-Command $settings 202
- Send-Command $hostWindow 108
  try {
   & "$PSScriptRoot/../measure-idle.ps1" -Seconds $IdleSampleSeconds | ConvertTo-Json | Set-Content "$Output/idle-sample.json" -Encoding utf8NoBOM
  } catch {
