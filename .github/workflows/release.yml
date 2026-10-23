@@ -1,7 +1,13 @@
 name: Release candidate preparation
 on:
-  workflow_dispatch:
   workflow_call:
+    inputs:
+      upload_only:
+        type: boolean
+        default: false
+      source_run:
+        type: number
+        default: 0
 permissions:
   contents: read
 concurrency:
@@ -9,6 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   candidate:
+    if: ${{ !inputs.upload_only }}
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
@@ -61,3 +68,23 @@ jobs:
             showcase-frames/idle-sample.json
             showcase-frames/native-stderr.log
           if-no-files-found: warn
+
+  attach-to-draft:
+    if: inputs.upload_only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-candidate-windows-x64
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: candidate-download
+      - name: Verify artifact and draft, then attach without publishing
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/release/attach_draft.py candidate-download

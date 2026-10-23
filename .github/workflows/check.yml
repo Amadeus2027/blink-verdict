@@ -9,6 +9,14 @@ on:
         description: Run release-only acceptance and package a candidate
         type: boolean
         default: false
+      upload_only:
+        description: Attach a validated candidate to an existing draft; never publish
+        type: boolean
+        default: false
+      source_run:
+        description: Successful candidate workflow run ID for attachment
+        type: number
+        default: 0
 permissions:
   contents: read
 concurrency:
@@ -75,7 +83,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -144,5 +152,11 @@ jobs:
           git push origin "HEAD:$BRANCH"
 
   release-candidate:
-    if: github.event_name == 'workflow_dispatch' && inputs.release_candidate
+    if: github.event_name == 'workflow_dispatch' && (inputs.release_candidate || inputs.upload_only)
+    permissions:
+      contents: write
+      actions: read
     uses: ./.github/workflows/release.yml
+    with:
+      upload_only: ${{ inputs.upload_only || false }}
+      source_run: ${{ inputs.source_run || 0 }}
