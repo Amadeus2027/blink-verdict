@@ -1197,10 +1197,16 @@ impl Settings {
                     .trim()
                     .parse::<f64>()
                     .map_err(|_| "请填写 12–100 之间的不透明度".to_string())?;
-                if !opacity.is_finite() || !(12.0..=100.0).contains(&opacity) {
-                    return Err("不透明度应为 12–100%".into());
+                let alpha = (opacity * 255.0 / 100.0).round();
+                // Legacy alpha 30 is displayed as 11.8%; accepting that rounded
+                // value preserves valid saved themes when this page is opened.
+                if !opacity.is_finite()
+                    || !(0.0..=100.0).contains(&opacity)
+                    || !(30.0..=255.0).contains(&alpha)
+                {
+                    return Err("整体不透明度应为约 12–100%".into());
                 }
-                c.theme.opacity = (opacity * 255.0 / 100.0).round() as u8;
+                c.theme.opacity = alpha as u8;
                 c.theme.fullscreen_font_size = self.number(324)?;
                 c.theme.widget_font_size = self.number(325)?;
                 let seconds = |id| -> Result<u32, String> {
