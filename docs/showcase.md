@@ -1,41 +1,48 @@
-# 看看答案如何浮现
+# 一次完整体验
 
-![BlinkVerdict：一次按键，两种显示方式](assets/showcase.gif)
+![BlinkVerdict：完整功能与运镜预览](assets/showcase.gif)
 
-给眼前的选择，一个答案。
+从一次按键，到属于你的答案。GIF 包含全部主要章节；[完整 39 秒产品短片 · MP4](assets/showcase.mp4) 保留 1280 × 800、24 帧/秒的流畅运镜。GIF 约 1 MB，MP4 约 1.9 MB。两种文件均保存在仓库，无需下载构建附件。
 
-短片以舒缓的镜头展示一次按键、全屏浮现与常驻浮窗，再看一眼属于你的决策与外观设置。README 中保留约八秒的静音循环，完整产品短片约二十四秒。动图针对手机阅读压缩为 640 × 400、10 帧/秒，完整 MP4 保留原有清晰度。
+| 时间 | 看到什么 |
+|---|---|
+| 00:00–00:04 | 界面主镜头：侧向透视逐渐转向正面 |
+| 00:04–00:08 | 快捷键与全屏文字，没有背景遮罩 |
+| 00:08–00:12 | 常驻浮窗与独立背景透明度 |
+| 00:12–00:16 | 自定义目标、选项和快捷键 |
+| 00:16–00:20 | 浮窗位置、大小与精确调整 |
+| 00:20–00:24 | 出现动画、透明度、字号和时长 |
+| 00:24–00:30 | 清晰纯色、流光玻璃、柔彩手写的原生预览 |
+| 00:30–00:36 | 云端/API 与本机模型连接 |
+| 00:36–00:39 | 新的产品标识与结尾主镜头 |
 
-演示使用软件内置的外观预览，YES 是示例答案，没有向模型发送画面。全屏只显示文字，常驻浮窗使用可调半透明圆角背景；当前不包含背景模糊。
-
-**[观看或下载完整产品短片 · MP4](assets/showcase.mp4)**。视频与 GIF 均保存在仓库中，无需下载构建附件。
+所有界面来自真实 Windows 程序，使用独立演示配置。YES 是外观预览中的示例答案，演示没有向模型发送画面、使用真实密钥或运行本地模型。
 
 <details>
-<summary>录制来源与复现方式</summary>
+<summary>录制来源、镜头与复现方式</summary>
 
-[原始录制与导出任务](https://github.com/Amadeus2027/blink-verdict/actions/runs/39938825934) 的附件额外保留录制帧、MP4、GIF 与来源记录（需登录 GitHub，附件有保留期限）。
+[录制与导出任务](https://github.com/Amadeus2027/blink-verdict/actions/runs/39955205509) · [来源与后台采样记录](assets/showcase/provenance.json) · [原生设置截图](assets/showcase/01-decision.png)
 
-所有界面均来自真实的 Windows Rust 程序。源截图位于 [showcase](assets/showcase/01-decision.png)，[来源记录](assets/showcase/provenance.json) 保存源提交、操作系统、字体、采集方式和检查结果。
+窗口、全屏文字、常驻浮窗、三种字效和本机服务配置均由 `--recordable-preview` 模式中的原生程序绘制。普通启动仍排除自身截图，录制模式禁用决策触发。临时窗口只提供演示桌面背景。
 
-采集在独立的临时配置中运行，使用 `--recordable-preview` 禁用决策触发并允许录制浮层；普通启动仍排除自身截图。录制脚本拒绝连接已有的常驻实例，并检查窗口归属。无需真实密钥，不触发截图决策、OCR、模型或 Game Bar。
+镜头将原生截图作为平面进行透视推进与侧向移动，并加入分层阴影、缓入缓出、字幕和转场。这些是影片的剪辑表达，不是软件自身的立体界面或实时玻璃效果。未伪造模型答案、配置连接状态或应用功能。GIF 加速至约 26 秒、降低分辨率与帧率，但保留全部章节；MP4 适合查看细节与完整运镜。
 
-临时原生窗口提供浅色渐变背景，真实浮层显示在其上。剪辑只加入字幕、裁切、缩放与淡白转场，不在后期伪造玻璃、模糊或应用状态。静态设置镜头与预览序列均为演示画面，不代表游戏兼容或性能验证。
+录像结尾关闭设置和预览，用现有 `measure-idle.ps1` 进行 10 次短采样。CIM 查询使实际区间约为 15 秒，结果写入来源记录。它是开发验证，不替代发行前的 60 秒资源验收。
 
-手动运行 **Windows build and core checks** 工作流，可重新采集并导出。日常 push / PR 仍只运行最小核心检查。字体仅安装在录制环境，文档素材不加入程序便携包。
-
-本地需要 PowerShell 7、可用的 Windows 桌面及 GDI。先退出已有实例，在临时桌面会话中运行，并将 `RUNNER_TEMP` 指向临时目录：
+在 Windows PowerShell 7 和临时桌面会话中，退出已有实例后运行：
 
 ```powershell
 cargo build --locked --release
 ./scripts/showcase/capture.ps1
 ```
 
-编辑阶段需要 FFmpeg 与中文字体：
+编辑需要 FFmpeg、Pillow 和中文字体，它们只用于文档制作，不随程序分发：
 
 ```bash
+python3 -m pip install 'Pillow>=11,<14'
 python3 scripts/showcase/render.py showcase-frames showcase-edit /path/to/CJK-font.otf
 ```
 
-</details>
+设计参考：[Linear](https://linear.app/)、[Screen Studio](https://screen.studio/) 的产品演示，以及 [三不五时与影视飓风合作的产品长镜头幕后](https://www.bilibili.com/video/BV1Uc411w77x/) 对仰视、环绕、前后景与速度变化的讲解。此处用平面透视实现适合软件界面的运镜，没有复制其素材或声称具备同等实拍制作。
 
-设计参考：[Apple 材质](https://developer.apple.com/design/human-interface-guidelines/materials)、[Things](https://culturedcode.com/things/)、[Raycast](https://www.raycast.com/blog/the-new-raycast)。主视觉以用户提供的 ChatGPT iOS 截图为准。
+</details>

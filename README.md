@@ -15,7 +15,7 @@
 
 <p align="center"><sub>Windows 10 / 11 · 安静待命 · 本地与云端模型</sub></p>
 
-<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="640" /></a><br/><sub>完整功能预览 · 全屏文字、常驻浮窗、字效、布局与模型连接。原画短片见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
+<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="BlinkVerdict：一次按键，答案浮现" width="560" /></a><br/><sub>完整功能预览 · 全屏文字、常驻浮窗、字效、布局与模型连接。原画短片见 <a href="docs/showcase.md">产品演示</a>。</sub></p>
 
 ## 为需要做选择的那一刻
 
@@ -88,7 +88,7 @@
 
 BlinkVerdict 采用原生 Rust 实现，不附带浏览器运行时或模型。仅在你触发时读取屏幕、执行 OCR 或请求决策；设置按需打开，显示停止后结束动画刷新。
 
-本地模型的内存与显存开销取决于你运行的服务。实际资源占用与兼容记录见 [验证说明](docs/validation.md)。
+本地模型的内存与显存开销取决于你运行的服务。本次 Windows 录制环境中，隐藏后台的私有工作集短采样平均约 **4.3 MiB**（约 15 秒，不含本地模型）。采样条件、程序大小和兼容记录见 [验证说明](docs/validation.md)。
 
 ## 你的画面，由你掌握
 
