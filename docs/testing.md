@@ -16,13 +16,14 @@ Create a copy of `docs/releases/TEMPLATE.md`, record the candidate commit and ac
 
 | Area | Required scenarios | Acceptance |
 |---|---|---|
-| Startup | Windows 10 22H2 / Windows 11, standard user, second instance, Explorer restart | One resident host, tray returns, no admin or console window |
-| Shortcuts | Default, reassigned, occupied shortcut, auto-repeat, trigger while busy/settings/editing | Conflict reported; no duplicate requests or stuck busy state |
+| Startup | First-run settings, single-click tray, Windows 10 22H2 / Windows 11, standard user, second instance, Explorer restart | One resident host, tray returns, no admin or console window |
+| Shortcuts | Pause/release/resume, resume conflict, saved changes while paused, default/reassigned, auto-repeat, trigger while busy/settings/editing | Conflict reported; no duplicate requests or stuck busy state |
 | Capture | Primary/secondary/negative-origin displays, 100/150/200% DPI, prior result visible | Correct foreground monitor; no self-overlay; no saved capture |
 | OCR | Installed Chinese/English OCR, no OCR language, empty text, graphic-only scene | Usable text or clear tray error; no guessed graphics interpretation |
 | Providers | Actual hosted and local decision services (System One, Decider, OpenAI Decisions), retained chat adapters, vision/OCR, refusal, probabilities, unreachable endpoint | Existing option or abstention; failures never become valid decisions |
 | Fullscreen | Short/long/custom Chinese answer, 300/1500/60000 ms, all five effects | Fits visible area, bounded lifetime, no focus/input changes |
-| Widget | Numeric X/Y/width/height, negative origin, reset, restart persistence, processing, error, 0/5000 ms, edit/lock, resize, unplug monitor | Starts hidden; fresh result timer; click-through outside edit; recovers on screen |
+| Settings | Unfinished field across page switch, invalid-input error page, preset/key isolation, Apply/OK/Cancel, two-second unsaved preview, acrylic fallback, IME and keyboard navigation | No lost drafts, unintended saves, model requests or unreadable text |
+| Widget | Numeric X/Y/width/height, negative origin, reset, restart persistence, processing, error, 0/5000 ms, edit/lock, resize, unplug monitor | Persistent mode waits visibly; timed mode hides; fresh result timer; click-through outside edit; recovers on screen |
 | Word art | Three generated presets, both YES/NO rows, arbitrary custom labels, custom RGBA PNG, missing/oversized PNG | Correct sprite, true alpha, fallback to readable text, no idle image retention |
 | Games | At least one borderless and one exclusive candidate; record anti-cheat and game/version | Keyboard/mouse continue; no pause, focus steal, or process injection |
 | Game Bar | Not installed, wrong family, closed/unpinned/non-click-through, both sizes/modes, all effects, disconnect | Reject unsafe/unavailable display; no panel launch; host foreground unchanged |

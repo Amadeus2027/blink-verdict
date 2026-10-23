@@ -10,3 +10,7 @@ config.json.tmp
 /gamebar/AppPackages/
 /gamebar/.vs/
 *.pfx
+
+/showcase-frames/
+/showcase-edit/
+__pycache__/

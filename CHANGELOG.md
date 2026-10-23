@@ -2,6 +2,13 @@
 
 ## 0.1.0 — Unreleased development preview
 
+- Minimal iOS-inspired native settings: sidebar, rounded inputs/buttons, Windows acrylic when available, opaque fallback and a translucent rounded widget.
+- First-run settings, single-click tray access, pause/resume that releases the shortcut, and disabled unavailable menu actions.
+- Page navigation retains unfinished fields; presets fill automatically and clear unsaved keys on endpoint/protocol changes. Apply/OK/Cancel and unsaved-change handling replace save-and-close-only interaction.
+- Two-second draft style preview without saving, capture, model traffic or Game Bar IPC; native persistent widget is the default for new installations. Existing durations remain intact.
+- Widget edit mode is temporary and can end with a right-click; a direct settings action applies and enters editing.
+- On-demand Windows-native showcase recording and editorial MP4/GIF generation, separate from daily checks.
+
 - Native tray host, configurable global shortcut and single-instance startup.
 - Passive fullscreen and click-through widget rendering, shared theme and independent lifetimes.
 - Five presentation effects and three AI-generated YES/NO art presets; per-answer custom PNG mappings.

@@ -5,6 +5,7 @@ mod gamebar;
 mod hotkey;
 mod render;
 mod settings;
+mod settings_style;
 
 use blink_verdict::{
     config::{Config, DisplayMode},
@@ -37,6 +38,8 @@ const CMD_EDIT: usize = 103;
 const CMD_PREVIEW: usize = 104;
 const CMD_EXIT: usize = 105;
 const CMD_STATUS: usize = 106;
+const CMD_PAUSE: usize = 107;
+const CMD_HIDE: usize = 108;
 
 fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()
@@ -52,6 +55,9 @@ pub(super) struct App {
     overlay: HWND,
     settings: HWND,
     config: Config,
+    presentation: Option<Config>,
+    paused: bool,
+    recording_preview: bool,
     config_path: PathBuf,
     status: String,
     busy: bool,
@@ -86,6 +92,8 @@ pub fn run() {
             .unwrap_or_else(std::env::temp_dir)
             .join("BlinkVerdict")
             .join("config.json");
+        let recording_preview = std::env::args_os().any(|arg| arg == "--recordable-preview");
+        let first_run = !path.exists();
         let (config, status) = match Config::load(&path) {
             Ok(c) => (c, "待命；请先通过托盘设置模型与判断任务".into()),
             Err(error) => (Config::default(), error),
@@ -127,6 +135,9 @@ pub fn run() {
             overlay: HWND::default(),
             settings: HWND::default(),
             config,
+            presentation: None,
+            paused: false,
+            recording_preview,
             config_path: path,
             status,
             busy: false,
@@ -173,12 +184,19 @@ pub fn run() {
         }
         SetWindowLongPtrW(app.overlay, GWLP_USERDATA, (&mut *app as *mut App) as isize);
         // Also hide ourselves before capturing, for older Windows versions or unsupported affinity.
-        let _ = SetWindowDisplayAffinity(app.overlay, WDA_EXCLUDEFROMCAPTURE);
+        if !recording_preview {
+            let _ = SetWindowDisplayAffinity(app.overlay, WDA_EXCLUDEFROMCAPTURE);
+        }
         match app.register_hotkey(&app.config.hotkey.clone()) {
             Ok(()) => app.hotkey_active = true,
             Err(error) => app.status = error,
         }
         app.tray(NIM_ADD);
+        if first_run {
+            settings::open(&mut app);
+        } else {
+            app.restore_widget();
+        }
         let mut message = MSG::default();
         loop {
             let result = GetMessageW(&mut message, None, 0, 0).0;
@@ -258,11 +276,29 @@ impl App {
                 self.editing,
             ),
             (CMD_PREVIEW, "预览当前效果（不截图）", false),
+            (CMD_HIDE, "收起当前显示（下次按键再显示）", false),
+            (
+                CMD_PAUSE,
+                if self.paused {
+                    "恢复决策快捷键"
+                } else {
+                    "暂停决策快捷键"
+                },
+                self.paused,
+            ),
             (CMD_STATUS, "查看状态 / 最近错误…", false),
             (CMD_EXIT, "退出", false),
         ] {
             let text = wide(title);
-            let flags = MF_STRING | if checked { MF_CHECKED } else { MF_UNCHECKED };
+            if matches!(id, CMD_FULLSCREEN | CMD_EDIT | CMD_HIDE | CMD_EXIT) {
+                let _ = AppendMenuW(menu, MF_SEPARATOR, 0, PCWSTR::null());
+            }
+            let blocked = self.busy && id != CMD_STATUS && id != CMD_EXIT
+                || !self.settings.is_invalid()
+                    && matches!(id, CMD_FULLSCREEN | CMD_WIDGET | CMD_EDIT | CMD_PREVIEW);
+            let flags = MF_STRING
+                | if checked { MF_CHECKED } else { MF_UNCHECKED }
+                | if blocked { MF_GRAYED } else { MF_ENABLED };
             let _ = AppendMenuW(menu, flags, id, PCWSTR(text.as_ptr()));
         }
         let mut point = POINT::default();
@@ -285,6 +321,14 @@ impl App {
     }
 
     unsafe fn command(&mut self, id: usize) {
+        if self.busy && id != CMD_STATUS && id != CMD_EXIT {
+            return;
+        }
+        if !self.settings.is_invalid()
+            && matches!(id, CMD_FULLSCREEN | CMD_WIDGET | CMD_EDIT | CMD_PREVIEW)
+        {
+            return;
+        }
         match id {
             CMD_SETTINGS => settings::open(self),
             CMD_FULLSCREEN | CMD_WIDGET => {
@@ -303,10 +347,7 @@ impl App {
                 if let Err(error) = self.config.save(&self.config_path) {
                     self.set_status(error);
                 }
-                // Keep an already open settings form synchronized with the mode switch.
-                if !self.settings.is_invalid() {
-                    let _ = DestroyWindow(self.settings);
-                }
+                self.restore_widget();
             }
             CMD_EDIT => {
                 if self.busy {
@@ -315,10 +356,16 @@ impl App {
                 if self.editing {
                     self.lock_widget();
                     self.hide();
+                    self.restore_widget();
                 } else {
                     self.clear_gamebar();
                     self.hide();
-                    self.config.mode = DisplayMode::Widget;
+                    if !self.config.gamebar_package_family.is_empty() {
+                        self.set_status("Game Bar 窗口请从其面板调整位置 / 大小".into());
+                        return;
+                    }
+                    let mut editing_config = self.config.clone();
+                    editing_config.mode = DisplayMode::Widget;
                     self.editing = true;
                     let style = WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED;
                     SetWindowLongPtrW(self.overlay, GWL_EXSTYLE, style.0 as isize);
@@ -338,10 +385,11 @@ impl App {
                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
                     );
                     self.show(
-                        "拖动移动 · 边缘缩放".into(),
+                        "拖动调整 · 右键完成".into(),
                         capture::foreground_rect(),
                         None,
                         false,
+                        Some(editing_config),
                     );
                     let _ = self.config.save(&self.config_path);
                     if !self.settings.is_invalid() {
@@ -363,6 +411,32 @@ impl App {
                     } else {
                         self.start_worker(Some(text));
                     }
+                }
+            }
+            CMD_HIDE => {
+                self.clear_gamebar();
+                self.lock_widget();
+                self.hide();
+            }
+            CMD_PAUSE => {
+                if self.paused {
+                    match self.register_hotkey(&self.config.hotkey) {
+                        Ok(()) => {
+                            self.paused = false;
+                            self.hotkey_active = true;
+                            self.set_status("快捷键已恢复，等待决策".into());
+                            self.restore_widget();
+                        }
+                        Err(error) => self.set_status(error),
+                    }
+                } else {
+                    let _ = UnregisterHotKey(self.host, HOTKEY_ID);
+                    self.paused = true;
+                    self.hotkey_active = false;
+                    self.clear_gamebar();
+                    self.lock_widget();
+                    self.hide();
+                    self.set_status("快捷键已暂停；从托盘恢复".into());
                 }
             }
             CMD_STATUS => {
@@ -430,6 +504,30 @@ impl App {
         self.visible = false;
         self.expires_at = None;
         self.renderer = None;
+        self.presentation = None;
+    }
+
+    fn display_config(&self) -> &Config {
+        self.presentation.as_ref().unwrap_or(&self.config)
+    }
+
+    unsafe fn restore_widget(&mut self) {
+        if self.config.mode == DisplayMode::Widget
+            && self.config.theme.widget_duration_ms == 0
+            && self.config.gamebar_package_family.is_empty()
+            && !self.paused
+            && !self.busy
+            && !self.editing
+            && self.settings.is_invalid()
+        {
+            self.show(
+                "等待决策".into(),
+                capture::foreground_rect(),
+                None,
+                false,
+                None,
+            );
+        }
     }
 
     unsafe fn show(
@@ -438,11 +536,14 @@ impl App {
         rect: RECT,
         duration: Option<Duration>,
         is_result: bool,
+        presentation: Option<Config>,
     ) {
         self.hide();
+        self.presentation = presentation;
+        let config = self.display_config().clone();
         self.text = text;
         self.result_display = is_result;
-        let (x, y, width, height) = if self.config.mode == DisplayMode::Fullscreen {
+        let (x, y, width, height) = if config.mode == DisplayMode::Fullscreen {
             (
                 rect.left,
                 rect.top,
@@ -456,27 +557,19 @@ impl App {
             };
             let monitor = MonitorFromPoint(
                 POINT {
-                    x: self.config.widget_x,
-                    y: self.config.widget_y,
+                    x: config.widget_x,
+                    y: config.widget_y,
                 },
                 MONITOR_DEFAULTTONEAREST,
             );
             let _ = GetMonitorInfoW(monitor, &mut area);
             let work = area.rcWork;
-            let width = self
-                .config
-                .widget_width
-                .min((work.right - work.left).max(160));
-            let height = self
-                .config
-                .widget_height
-                .min((work.bottom - work.top).max(80));
-            let x = self
-                .config
+            let width = config.widget_width.min((work.right - work.left).max(160));
+            let height = config.widget_height.min((work.bottom - work.top).max(80));
+            let x = config
                 .widget_x
                 .clamp(work.left, (work.right - width).max(work.left));
-            let y = self
-                .config
+            let y = config
                 .widget_y
                 .clamp(work.top, (work.bottom - height).max(work.top));
             (x, y, width, height)
@@ -491,7 +584,7 @@ impl App {
             SWP_NOACTIVATE,
         );
         // Decode and create the surface before starting the configured result lifetime.
-        match render::Renderer::new(self.overlay, &self.config, &self.text) {
+        match render::Renderer::new(self.overlay, &config, &self.text) {
             Ok(renderer) => self.renderer = Some(renderer),
             Err(_) => {
                 self.hide();
@@ -532,12 +625,13 @@ impl App {
                 Some(Duration::from_millis(ms.into()))
             },
             true,
+            None,
         );
     }
 
     fn effect(&self) -> blink_verdict::config::Animation {
         if self.result_display {
-            self.config.theme.animation
+            self.display_config().theme.animation
         } else {
             blink_verdict::config::Animation::None
         }
@@ -548,7 +642,7 @@ impl App {
             return;
         }
         if self.renderer.is_none() {
-            match render::Renderer::new(self.overlay, &self.config, &self.text) {
+            match render::Renderer::new(self.overlay, self.display_config(), &self.text) {
                 Ok(renderer) => self.renderer = Some(renderer),
                 Err(_) => {
                     self.hide();
@@ -567,7 +661,7 @@ impl App {
             .renderer
             .as_ref()
             .unwrap()
-            .paint(&self.config, &self.text, self.editing, motion)
+            .paint(self.display_config(), &self.text, self.editing, motion)
             .is_err()
         {
             self.hide();
@@ -576,7 +670,12 @@ impl App {
     }
 
     unsafe fn trigger(&mut self) {
-        if self.busy || self.editing || !self.settings.is_invalid() {
+        if self.recording_preview
+            || self.paused
+            || self.busy
+            || self.editing
+            || !self.settings.is_invalid()
+        {
             return;
         }
         self.start_worker(None);
@@ -684,7 +783,7 @@ impl App {
         for event in events {
             match event {
                 WorkerEvent::Captured => {
-                    self.show("判断中…".into(), self.capture_rect, None, false)
+                    self.show("判断中…".into(), self.capture_rect, None, false, None)
                 }
                 WorkerEvent::Finished(result) => {
                     self.busy = false;
@@ -699,6 +798,7 @@ impl App {
                         Err(error) => {
                             self.hide();
                             self.set_status(error);
+                            self.restore_widget();
                         }
                     }
                 }
@@ -734,13 +834,14 @@ unsafe extern "system" fn host_proc(
         TRAY_EVENT => {
             match lparam.0 as u32 {
                 WM_RBUTTONUP | WM_CONTEXTMENU => app.menu(),
-                WM_LBUTTONDBLCLK => settings::open(app),
+                WM_LBUTTONUP | WM_LBUTTONDBLCLK => settings::open(app),
                 _ => (),
             }
             LRESULT(0)
         }
         WM_DISPLAYCHANGE => {
             app.hide();
+            app.restore_widget();
             LRESULT(0)
         }
         WM_ENDSESSION => {
@@ -769,6 +870,10 @@ unsafe extern "system" fn overlay_proc(
     }
     let app = &mut *pointer;
     match message {
+        WM_RBUTTONUP | WM_NCRBUTTONUP if app.editing => {
+            app.command(CMD_EDIT);
+            LRESULT(0)
+        }
         WM_NCCALCSIZE => LRESULT(0),
         WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
         WM_NCHITTEST => {
