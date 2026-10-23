@@ -2,6 +2,8 @@
 
 ## 0.1.0 — Unreleased development preview
 
+- Replace the expressive YES/NO presets with clear graphite-blue, softly tinted glass and welcome-style gradient script lettering, informed by actual Apple typography, Liquid Glass and Hello examples. Preserve saved preset keys and archive the previous artwork outside packaged assets.
+
 - Light grouped settings inspired by the supplied ChatGPT iOS references: three main sections, white grouped rows, outline icons, compact navigation and quiet window chrome.
 - First-run model → decision setup; click-and-press shortcut recording, color pickers, secondary pages for advanced options, and direct widget layout editing.
 - Done saves and closes, Cancel discards, and the window close button offers to save unfinished work. Draft fields survive navigation; the four-second preview reads no screen and calls no model.

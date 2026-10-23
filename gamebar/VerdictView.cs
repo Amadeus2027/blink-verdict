@@ -127,7 +127,7 @@ namespace BlinkVerdict.GameBar
 
         private async Task SetArtAsync(JsonObject message, bool show)
         {
-            art.Visibility = Visibility.Collapsed; result.Visibility = Visibility.Visible;
+            art.Visibility = Visibility.Collapsed; result.Visibility = Visibility.Visible; art.Clip = null;
             content.Width = content.Height = double.NaN; content.Clip = null;
             fit.MaxHeight = double.PositiveInfinity;
             if (!show) return;
@@ -157,7 +157,12 @@ namespace BlinkVerdict.GameBar
                 content.Width = content.Height = 512;
                 content.Clip = new RectangleGeometry { Rect = new Rect(0, 0, 512, 512) };
                 art.Width = 1536; art.Height = 1024;
-                art.RenderTransform = new TranslateTransform { X = -column * 512, Y = -row * 512 };
+                // Clip before translation so neighboring sprites cannot enter the cell.
+                art.Clip = new RectangleGeometry { Rect = new Rect(column * 512, row * 512, 512, 512) };
+                art.RenderTransform = new TranslateTransform {
+                    X = -column * 512 + message.GetNamedNumber("artOffsetX", 0) * 512,
+                    Y = -row * 512 + message.GetNamedNumber("artOffsetY", 0) * 512
+                };
                 art.Source = new BitmapImage(new Uri("ms-appx:///Assets/wordart.png"));
             }
             fit.MaxHeight = result.FontSize * 3;

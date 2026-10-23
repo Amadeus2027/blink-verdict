@@ -6,9 +6,10 @@ use std::{fs, path::Path};
 pub enum ArtStyle {
     #[default]
     Plain,
-    Ink,
-    Cyberpunk,
-    Graffiti,
+    // Keep serialized keys stable for saved themes and the Game Bar bridge.
+    Ink,       // Clear color
+    Cyberpunk, // Tinted glass
+    Graffiti,  // Soft script
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
