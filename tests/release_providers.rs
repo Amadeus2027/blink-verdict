@@ -94,8 +94,12 @@ fn all_adapters_send_observations_and_map_results() {
         Provider::Anthropic,
         Provider::Gemini,
         Provider::Ollama,
+        Provider::LlamaCpp,
     ] {
-        for vision in [false, true] {
+        for (vision, unload) in [(false, false), (true, false), (false, true), (true, true)] {
+            if unload && provider != Provider::Ollama {
+                continue;
+            }
             let (endpoint, worker) = server(move |stream| {
                 let (header, body) = request(stream);
                 let lower = header.to_ascii_lowercase();
@@ -128,7 +132,9 @@ fn all_adapters_send_observations_and_map_results() {
                     Provider::OpenAiDecisions => {
                         json!({"answers":[{"type":"choice","name":"decision","choice":"option_2","confidence":0.8,"probabilities":[{"value":"option_1","probability":0.1},{"value":"option_2","probability":0.8},{"value":"uncertain","probability":0.1}]}]})
                     }
-                    Provider::OpenAi => json!({"choices":[{"message":{"content":answer}}]}),
+                    Provider::OpenAi | Provider::LlamaCpp => {
+                        json!({"choices":[{"message":{"content":answer}}]})
+                    }
                     Provider::OpenAiResponses => {
                         json!({"output":[{"type":"message","content":[{"type":"output_text","text":answer}]}]})
                     }
@@ -137,7 +143,7 @@ fn all_adapters_send_observations_and_map_results() {
                         json!({"candidates":[{"content":{"parts":[{"text":answer}]}}]})
                     }
                     Provider::Ollama => {
-                        assert_eq!(body["keep_alive"], 0);
+                        assert_eq!(body.get("keep_alive"), unload.then_some(json!(0)).as_ref());
                         json!({"message":{"content":answer}})
                     }
                 };
@@ -148,6 +154,7 @@ fn all_adapters_send_observations_and_map_results() {
                 model: provider.defaults().1.into(),
                 endpoint,
                 vision,
+                ollama_unload_after_request: unload,
                 ..Config::default()
             };
             let input = if vision {

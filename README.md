@@ -34,7 +34,7 @@
 
 **[查看发行包](https://github.com/Amadeus2027/blink-verdict/releases)** · [更新记录](CHANGELOG.md) · [版本验收状态](docs/releases/0.1.0-rc.1.md)
 
-**0.1.0-rc.1 候选版**已通过自动发行检查，尚未发布稳定版。可从[候选构建任务](https://github.com/Amadeus2027/blink-verdict/actions/runs/39963660804)下载 `release-candidate-windows-x64`（需登录 GitHub，附件有保留期限）。正式下载以 Releases 中的公开附件为准；发行草稿尚未公开。
+**0.1.0-rc.1 候选版暂停发布**：已确认“关于”页保存可能清空 Game Bar 配置，以及配置保存失败后密钥未恢复的问题。原候选附件不含修复，请使用修复合并后的开发构建；尚无稳定发行版。详见[验收记录](docs/releases/0.1.0-rc.1.md)。
 
 | 项目 | 说明 |
 |---|---|
@@ -84,19 +84,21 @@
 |---|---|
 | 专用决策 | TypeSafe Jev、System One、Perplexity Decider、Cloudflare Clef、OpenAI Decisions |
 | 常规模型 | OpenAI Chat Completions / Responses、Anthropic、Google Gemini、Ollama，以及匹配协议的兼容服务 |
-| 本机服务 | System One / vLLM、Ollama、LM Studio 等已启动的兼容服务 |
+| 本机服务 | llama.cpp（llama-server）、System One / vLLM、Ollama、LM Studio 等已启动的兼容服务 |
 
 可发送屏幕截图，或先在本机 OCR 提取文字。截图需要模型支持视觉；文字模型使用 OCR。**接口实现不等于已完成厂商在线认证**：目前协议测试使用合成样例与回环服务，真实服务及权重运行的验收状态见版本记录。
 
 专用接口提供的概率和置信度可在托盘“状态与连接信息”查看，不构成正确率保证。第三方服务的账号、费用和可用性由相应提供方决定。
 
-[查看地址、模型名称、输入能力与本地配置 →](docs/models.md)
+**正在使用 llama.cpp？** 选择“llama.cpp · 本机”，填入服务地址和模型名称即可。[查看 llama-server 接入指南 →](docs/llama-cpp.md)
+
+[查看全部地址、模型名称、输入能力与本地配置 →](docs/models.md)
 
 ## 轻量待命，按需工作
 
 采用原生 Rust 与 Windows 接口，不附带浏览器运行时或本地推理引擎。仅在触发决策时读取屏幕、执行 OCR 或请求模型；显示结束后停止动画刷新。
 
-本次 x64 候选包约 **0.9 MB**，主程序约 **1.15 MB**。在 Windows runner 的每组 60 次采样中，使用后待命的平均私有工作集约 **3.2 MiB**，常驻浮窗约 **5.7 MiB**。这些是该环境的观测值，不是所有设备的占用承诺；本地模型的内存与显存开销另计。[查看完整测量条件 →](docs/releases/0.1.0-rc.1.md)
+先前 0.1.0-rc.1 候选包约 **0.9 MB**，主程序约 **1.15 MB**。在 Windows runner 的每组 60 次采样中，使用后待命的平均私有工作集约 **3.2 MiB**，常驻浮窗约 **5.7 MiB**。这些是该环境的观测值，不是所有设备的占用承诺；本地模型的内存与显存开销另计。[查看完整测量条件 →](docs/releases/0.1.0-rc.1.md)
 
 ## 隐私与数据
 

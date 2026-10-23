@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0-rc.1 — Candidate in preparation
+## Unreleased
+
+- Add a dedicated llama.cpp / llama-server preset, native schema-constrained choices and a local setup guide; retain existing compatible adapters.
+- Keep the saved Game Bar family when saving from About; only the Game Bar page edits it.
+- Restore the previous credential for the edited endpoint when configuration saving fails, including key replacement/deletion.
+- Follow Ollama's residency policy by default; make unloading after use an explicit connection preference.
+- Store two focused Windows settings/credential regressions outside daily CI and include them in future release checks.
+
+The existing RC1 artifact predates these fixes and is held from publication. It must be replaced by a newly validated candidate before release.
+
+## 0.1.0-rc.1 — Candidate held
 
 - Release-only Windows validation, real desktop shortcut/capture/input checks, hidden/visible resource samples, allowlisted ZIP, source manifest, SHA-256 and third-party license texts.
 - MIT project license; clearer download, upgrade, privacy and compatibility documentation.

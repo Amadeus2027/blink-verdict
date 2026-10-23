@@ -159,7 +159,7 @@ impl Settings {
             if *id < 300 {
                 continue;
             }
-            let value = if matches!(*id, 300 | 310 | 311 | 315 | 328 | 340 | 341) {
+            let value = if matches!(*id, 300 | 310 | 311 | 315 | 328 | 333 | 340 | 341) {
                 Field::Choice(self.selection(*id))
             } else if *id == 329 {
                 Field::Check(self.checked(*id))
@@ -268,6 +268,7 @@ impl Settings {
                 c.provider = index_provider(self.selection(310));
                 c.timeout_seconds = self.number(316)?;
                 c.output_tokens = self.number(317)?;
+                c.ollama_unload_after_request = self.selection(333) == 1;
             }
             7 => {
                 c.theme.font = self.text(320).trim().into();
@@ -329,9 +330,10 @@ impl Settings {
                 c.widget_width = coordinate(352)?;
                 c.widget_height = coordinate(353)?;
             }
-            _ => {
+            8 => {
                 c.gamebar_package_family = self.text(330).trim().into();
             }
+            _ => (),
         }
         Ok(())
     }
@@ -403,6 +405,10 @@ impl Settings {
                 "local-decision-model",
                 false,
             ),
+            16 => {
+                let (endpoint, model) = Provider::LlamaCpp.defaults();
+                (Provider::LlamaCpp, endpoint, model, false)
+            }
             0..=3 => {
                 let p = index_provider(index);
                 let (e, m) = p.defaults();
@@ -482,7 +488,7 @@ impl Settings {
     }
 }
 
-const PROVIDERS: [Provider; 10] = [
+const PROVIDERS: [Provider; 11] = [
     Provider::Jev,
     Provider::Decider,
     Provider::Clef,
@@ -493,6 +499,7 @@ const PROVIDERS: [Provider; 10] = [
     Provider::Anthropic,
     Provider::Gemini,
     Provider::Ollama,
+    Provider::LlamaCpp,
 ];
 
 fn provider_index(provider: Provider) -> usize {
@@ -537,12 +544,7 @@ unsafe fn save(app: &mut App) -> bool {
             return false;
         }
     }
-    let result = (|| {
-        if let Some(key) = key {
-            credentials::write(&config, &key)?;
-        }
-        config.save(&app.config_path)
-    })();
+    let result = credentials::save_config(&config, key.as_deref(), &app.config_path);
     if let Err(message) = result {
         let _ = UnregisterHotKey(app.host, HOTKEY_ID);
         app.hotkey_active = !app.paused && app.register_hotkey(&app.config.hotkey).is_ok();
@@ -789,6 +791,10 @@ pub(super) unsafe extern "system" fn window_proc(
                             ui.hwnd(317),
                             !index_provider(ui.selection(310)).is_decision(),
                         );
+                        let _ = EnableWindow(
+                            ui.hwnd(333),
+                            index_provider(ui.selection(310)) == Provider::Ollama,
+                        );
                     }
                 }
                 329 => {
@@ -928,4 +934,105 @@ pub(super) unsafe extern "system" fn window_proc(
 fn seconds_text(ms: u32) -> String {
     let s = format!("{:.3}", ms as f64 / 1000.0);
     s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "targeted Windows regression: about-page retention and native local-model controls"]
+    fn settings_regression_about_and_local_model_controls() {
+        unsafe {
+            let mut ui = Settings {
+                draft: Config {
+                    gamebar_package_family: "Existing.GameBar_family".into(),
+                    ..Config::default()
+                },
+                page: 5,
+                onboarding: false,
+                controls: Vec::new(),
+                cards: Vec::new(),
+                rows: Vec::new(),
+                style: Style::new(1.0, "Segoe UI"),
+                scale: 1.0,
+                pending_key: None,
+                fields: Default::default(),
+                visited: [5].into_iter().collect(),
+                building: false,
+                choice_labels: Default::default(),
+            };
+            assert_eq!(
+                ui.configuration(false).unwrap().gamebar_package_family,
+                "Existing.GameBar_family"
+            );
+            ui.fields
+                .insert(330, Field::Text("Edited.GameBar_family".into()));
+            assert_eq!(
+                ui.configuration(false).unwrap().gamebar_package_family,
+                "Existing.GameBar_family"
+            );
+            ui.visited.insert(8);
+            assert_eq!(
+                ui.configuration(false).unwrap().gamebar_package_family,
+                "Edited.GameBar_family"
+            );
+
+            struct Window(HWND);
+            impl Drop for Window {
+                fn drop(&mut self) {
+                    unsafe {
+                        let _ = DestroyWindow(self.0);
+                    }
+                }
+            }
+            let parent = Window(
+                CreateWindowExW(
+                    WINDOW_EX_STYLE(0),
+                    w!("STATIC"),
+                    w!("BlinkVerdict settings regression"),
+                    WINDOW_STYLE(0),
+                    0,
+                    0,
+                    800,
+                    860,
+                    None,
+                    None,
+                    GetModuleHandleW(None).unwrap_or_default(),
+                    None,
+                )
+                .unwrap(),
+            );
+            ui.combo(
+                parent.0,
+                333,
+                "Ollama",
+                &["Server policy", "Unload"],
+                0,
+                192,
+            );
+            SendMessageW(ui.hwnd(333), CB_SETCURSEL, WPARAM(1), LPARAM(0));
+            ui.cache();
+            for (_, hwnd) in ui.controls.drain(..) {
+                let _ = DestroyWindow(hwnd);
+            }
+            ui.visited = [6].into_iter().collect();
+            ui.fields
+                .insert(310, Field::Choice(provider_index(Provider::Ollama)));
+            ui.fields.insert(316, Field::Text("15".into()));
+            ui.fields.insert(317, Field::Text("1024".into()));
+            assert!(ui.configuration(false).unwrap().ollama_unload_after_request);
+
+            ui.page = 1;
+            ui.fields.insert(311, Field::Choice(17));
+            ui.pending_key = Some("not-a-real-key".into());
+            ui.preset(parent.0);
+            let local = ui.configuration(false).unwrap();
+            assert_eq!(local.provider, Provider::LlamaCpp);
+            assert_eq!(local.endpoint, "http://127.0.0.1:8080/v1");
+            assert_eq!(local.model, "blink-local");
+            assert!(!local.vision);
+            assert!(ui.pending_key.is_none());
+        }
+    }
 }

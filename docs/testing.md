@@ -4,12 +4,22 @@ Daily work uses four core groups (`cargo test --locked --lib`) plus necessary co
 
 The default Windows workflow checks formatting, runs these five tests on Windows, and builds a portable x64 executable. When the optional component or its art asset changes, it also compiles that component. It does not execute live-provider, game, endurance, or performance tests.
 
+## Focused settings regression
+
+For changes to settings persistence or local-model controls, manually dispatch the Windows workflow with `settings_regressions=true`, or run on Windows:
+
+```powershell
+cargo test --locked --bin blink-verdict settings_regression -- --ignored --test-threads=1
+```
+
+Two stored groups exercise About/Game Bar retention, native preset/residency-control caching, and real Credential Manager rollback against a locked configuration file (replace, delete, unchanged key, new endpoint, no previous credential and successful save). They use isolated synthetic credential targets and remove them afterward. They are excluded from daily CI and included before every release.
+
 ## Before every release
 
 Use the [release preparation workflow](releases/README.md) and create a record from `docs/releases/TEMPLATE.md` with the candidate commit and actual evidence. The workflow is manual and does not expand daily CI. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
 
 1. `cargo fmt --all -- --check`, `cargo test --locked --lib`, `cargo build --locked --release` on Windows.
-2. `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all ten protocol adapters / variants and both input routes, credentials in headers, keep-alive unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
+2. Run the two settings regressions above, then `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all eleven protocol adapters / variants and both input routes, credentials in headers, default service residency and optional Ollama unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
 3. The release-only workflow additionally checks the real registered shortcut, PNG capture, loopback choice, busy repeat suppression, foreground/keyboard/mouse delivery on a synthetic receiver, and 60-sample hidden-fresh/hidden-after-use/visible-widget metrics. These do not certify games, live services or endurance.
 4. Run the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
 

@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      settings_regressions:
+        description: Run only settings persistence and local-model regressions
+        type: boolean
+        default: false
       release_candidate:
         description: Run release-only acceptance and package a candidate
         type: boolean
@@ -83,7 +87,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only && !inputs.settings_regressions
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -160,3 +164,18 @@ jobs:
     with:
       upload_only: ${{ inputs.upload_only == true || inputs.upload_only == 'true' }}
       source_run: ${{ fromJSON(inputs.source_run || '0') }}
+
+  settings-regressions:
+    if: github.event_name == 'workflow_dispatch' && inputs.settings_regressions
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Existing core groups and targeted native regressions only
+        shell: pwsh
+        run: |
+          cargo test --locked --lib
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --locked --bin blink-verdict settings_regression -- --ignored --test-threads=1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
