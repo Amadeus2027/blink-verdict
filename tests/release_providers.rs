@@ -60,6 +60,7 @@ fn server(
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
+                    stream.set_nonblocking(false).unwrap();
                     handler(&mut stream);
                     break;
                 }
