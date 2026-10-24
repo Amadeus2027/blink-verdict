@@ -30,6 +30,7 @@ namespace BlinkVerdict.GameBar
         private bool fade;
         private bool fadingOut;
         private int generation;
+        private readonly DisplayOrder order = new DisplayOrder();
         public bool IsProcessing { get; private set; }
 
         public VerdictView(XboxGameBarWidget widget)
@@ -68,9 +69,23 @@ namespace BlinkVerdict.GameBar
             transform.ScaleX = transform.ScaleY = 1; transform.TranslateY = 0;
         }
 
-        public async Task<bool> ApplyAsync(string json)
+        public void Disconnect(long operation)
         {
-            var message = JsonObject.Parse(json);
+            if (order.Retire(operation) && IsProcessing) Hide();
+        }
+
+        public void Fail(long operation)
+        {
+            if (order.Retire(operation)) Hide();
+        }
+
+        public Task<bool> ApplyAsync(JsonObject message, long operation)
+        {
+            return order.ApplyAsync(operation, () => ApplyCurrentAsync(message, operation));
+        }
+
+        private async Task<bool> ApplyCurrentAsync(JsonObject message, long operation)
+        {
             string action = message.GetNamedString("action");
             Hide();
             if (!widget.Pinned || !widget.ClickThroughEnabled || !widget.Visible || widget.GameBarDisplayMode != XboxGameBarDisplayMode.PinnedOnly) return false;
@@ -83,8 +98,9 @@ namespace BlinkVerdict.GameBar
             var size = new Size(message.GetNamedNumber("width") / scale, message.GetNamedNumber("height") / scale);
             widget.MaxWindowSize = new Size(Math.Max(1600, size.Width), Math.Max(1000, size.Height));
             if (!await widget.TryResizeWindowAsync(size)) return false;
+            if (generation != requestGeneration || !order.IsCurrent(operation)) return false;
             if (fullscreen) await widget.CenterWindowAsync();
-            if (generation != requestGeneration) return false;
+            if (generation != requestGeneration || !order.IsCurrent(operation)) return false;
             // IPC never activates a window, launches Game Bar, or simulates input.
             // The fullscreen surface stays transparent, including while processing.
             var background = ColorFromHex(message.GetNamedString("backgroundColor"));
@@ -99,8 +115,8 @@ namespace BlinkVerdict.GameBar
             footer.Visibility = fullscreen ? Visibility.Collapsed : Visibility.Visible;
             fit.Margin = fullscreen ? new Thickness(24) : new Thickness(20, 12, 20, 28);
             footer.Text = message.GetNamedString("hotkey");
-            await SetArtAsync(message, action == "show");
-            if (generation != requestGeneration) return false;
+            await SetArtAsync(message, action == "show", requestGeneration, operation);
+            if (generation != requestGeneration || !order.IsCurrent(operation)) return false;
             double opacity = message.GetNamedNumber("opacity") / 255.0;
             string effect = action == "show" ? message.GetNamedString("animation") : "None";
             fade = effect != "None"; fadingOut = false; panel.Opacity = opacity;
@@ -125,7 +141,7 @@ namespace BlinkVerdict.GameBar
             return true;
         }
 
-        private async Task SetArtAsync(JsonObject message, bool show)
+        private async Task SetArtAsync(JsonObject message, bool show, int requestGeneration, long operation)
         {
             art.Visibility = Visibility.Collapsed; result.Visibility = Visibility.Visible; art.Clip = null;
             content.Width = content.Height = double.NaN; content.Clip = null;
@@ -143,6 +159,7 @@ namespace BlinkVerdict.GameBar
                         stream.Seek(0); await bitmap.SetSourceAsync(stream);
                     }
                 }
+                if (generation != requestGeneration || !order.IsCurrent(operation)) return;
                 if (bitmap.PixelWidth > 4096 || bitmap.PixelHeight > 4096) return;
                 art.Source = bitmap; art.RenderTransform = null;
                 content.Width = art.Width = bitmap.PixelWidth; content.Height = art.Height = bitmap.PixelHeight;

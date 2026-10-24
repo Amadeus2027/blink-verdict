@@ -46,6 +46,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Focused Game Bar operation ordering
+        shell: pwsh
+        run: ./scripts/tests/gamebar-order.ps1
       - name: Real desktop shortcut, input and resource checks
         shell: pwsh
         run: ./scripts/release/desktop-smoke.ps1

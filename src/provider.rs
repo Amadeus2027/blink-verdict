@@ -548,6 +548,8 @@ mod tests {
                     Err(e) => panic!("local service did not receive the request: {e}"),
                 }
             };
+            // Accepted sockets may inherit nonblocking mode on Windows.
+            stream.set_nonblocking(false).unwrap();
             stream
                 .set_read_timeout(Some(std::time::Duration::from_secs(5)))
                 .unwrap();

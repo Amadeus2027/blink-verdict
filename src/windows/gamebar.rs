@@ -29,10 +29,10 @@ pub(super) fn wait<T: RuntimeType + 'static>(
     operation.GetResults()
 }
 
-pub struct Bridge(AppServiceConnection);
+pub struct Bridge(AppServiceConnection, i64);
 
 impl Bridge {
-    pub fn connect(family: &str) -> std::result::Result<Self, String> {
+    pub fn connect(family: &str, operation: i64) -> std::result::Result<Self, String> {
         (|| -> Result<Self> {
             let connection = AppServiceConnection::new()?;
             connection.SetAppServiceName(&HSTRING::from("BlinkVerdictBridge"))?;
@@ -44,10 +44,20 @@ impl Bridge {
                     0x80004005u32 as i32,
                 )));
             }
-            Ok(Self(connection))
+            // Probe without a payload: older components must not apply an
+            // unsequenced hide/show before the host discovers the mismatch.
+            let probe = ValueSet::new()?;
+            probe.Insert(&HSTRING::from("protocol"), &PropertyValue::CreateInt32(2)?)?;
+            let response = wait(connection.SendMessageAsync(&probe)?, Duration::from_secs(3))?;
+            use windows::core::Interface;
+            let version: IPropertyValue = response.Message()?.Lookup(&HSTRING::from("protocol"))?.cast()?;
+            if response.Status()? != AppServiceResponseStatus::Success || version.GetInt32()? != 2 {
+                return Err(windows::core::Error::from(windows::core::HRESULT(0x80004005u32 as i32)));
+            }
+            Ok(Self(connection, operation))
         })()
         .map_err(|_| {
-            "无法连接 Game Bar 组件；请检查包家族名并手动打开、固定组件及启用点击穿透".into()
+            "无法连接匹配版本的 Game Bar 组件；请同时更新主程序与组件，并检查包家族名、固定状态及点击穿透".into()
         })
     }
 
@@ -81,6 +91,7 @@ impl Bridge {
         let offset = super::art::atlas_offset(config, text);
         (|| -> Result<bool> {
             let payload = serde_json::json!({
+                "protocol": 2, "operation": self.1.to_string(),
                 "action": action, "text": text,
                 "fullscreen": config.mode == DisplayMode::Fullscreen,
                 "durationMs": if config.mode == DisplayMode::Fullscreen { config.theme.fullscreen_duration_ms } else { config.theme.widget_duration_ms },

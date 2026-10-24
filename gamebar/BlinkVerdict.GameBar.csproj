@@ -28,6 +28,7 @@
   <ItemGroup>
     <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
     <Compile Include="VerdictView.cs" />
+    <Compile Include="DisplayOrder.cs" />
     <ApplicationDefinition Include="App.xaml"><Generator>MSBuild:Compile</Generator></ApplicationDefinition>
     <AppxManifest Include="Package.appxmanifest"><SubType>Designer</SubType></AppxManifest>
     <Content Include="Assets\*.png" />
