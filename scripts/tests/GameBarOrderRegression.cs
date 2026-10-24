@@ -37,21 +37,25 @@ namespace BlinkVerdict.GameBar
             });
             await started.Task;
             var newer = order.ApplyAsync(2, () => { visible = "new result"; return System.Threading.Tasks.Task.FromResult(true); });
-            Check(!newer.IsCompleted, "async UI mutations overlapped");
+            Check(newer.IsCompleted, "new result waited for an old async call");
             Check(!await order.ApplyAsync(1, () => { visible = ""; return System.Threading.Tasks.Task.FromResult(true); }), "queued late hide accepted");
             release.SetResult(true);
             Check(!await old && await newer && visible == "new result", "old continuation beat the new result");
 
-            // A closed connection must also invalidate its already-queued UI action.
+            // Retirement also invalidates a suspended continuation; a new operation can retry.
             release = new System.Threading.Tasks.TaskCompletionSource<bool>();
-            var blocker = order.ApplyAsync(3, async () => { await release.Task; return true; });
             bool applied = false;
-            var closed = order.ApplyAsync(4, () => { applied = true; return System.Threading.Tasks.Task.FromResult(true); });
-            Check(order.Retire(4), "queued disconnect rejected");
+            var closed = order.ApplyAsync(3, async () => {
+                await release.Task;
+                if (!order.IsCurrent(3)) return false;
+                applied = true;
+                return true;
+            });
+            Check(order.Retire(3), "current disconnect rejected");
             release.SetResult(true);
-            await blocker;
-            Check(!await closed && !applied, "closed queued action mutated the view");
-            Check(await order.ApplyAsync(5, () => System.Threading.Tasks.Task.FromResult(true)), "retry after disconnect rejected");
+            Check(!await closed && !applied, "closed continuation mutated the view");
+            Check(!await order.ApplyAsync(3, () => System.Threading.Tasks.Task.FromResult(true)), "closed queued action revived");
+            Check(await order.ApplyAsync(4, () => System.Threading.Tasks.Task.FromResult(true)), "retry after disconnect rejected");
         }
     }
 }
