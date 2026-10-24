@@ -255,6 +255,9 @@ mod tests {
         let legacy: Config = serde_json::from_value(serde_json::json!({"provider":"OpenAi","endpoint":"https://api.openai.com/v1","model":"gpt-4o-mini"})).unwrap();
         assert_eq!(legacy.provider, Provider::OpenAi);
         assert!(!legacy.ollama_unload_after_request);
+        assert_eq!(legacy.timeout_seconds, 45);
+        let configured: Config = serde_json::from_str(r#"{"timeout_seconds":15}"#).unwrap();
+        assert_eq!(configured.timeout_seconds, 15);
         let legacy_theme: Theme = serde_json::from_str(r#"{"opacity":200}"#).unwrap();
         assert_eq!(legacy_theme.widget_background_opacity, 180);
         assert_eq!(legacy_theme.opacity, 200);

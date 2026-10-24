@@ -29,7 +29,6 @@ use windows::{
 };
 
 const TRAY_EVENT: u32 = WM_APP + 1;
-const RESULT_EVENT: u32 = WM_APP + 2;
 const HOTKEY_ID: i32 = 1;
 const TIMER_ID: usize = 1;
 const WORKER_TIMER_ID: usize = 2;
@@ -833,10 +832,6 @@ unsafe extern "system" fn host_proc(
             LRESULT(0)
         }
         WM_TIMER if wparam.0 == WORKER_TIMER_ID => {
-            app.finish();
-            LRESULT(0)
-        }
-        RESULT_EVENT => {
             app.finish();
             LRESULT(0)
         }

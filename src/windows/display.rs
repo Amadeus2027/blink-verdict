@@ -32,7 +32,9 @@ pub unsafe fn interaction_monitor() -> HMONITOR {
     if !foreground.is_invalid()
         && !matches!(
             class.as_str(),
-            "Shell_TrayWnd"
+            "Progman"
+                | "WorkerW"
+                | "Shell_TrayWnd"
                 | "Shell_SecondaryTrayWnd"
                 | "NotifyIconOverflowWindow"
                 | "BlinkVerdict.Host"

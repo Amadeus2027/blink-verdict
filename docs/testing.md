@@ -24,7 +24,7 @@ $env:BLINK_VERDICT_TEST_EXE = (Resolve-Path target/release/blink-verdict.exe).Pa
 cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
 ```
 
-The two runtime groups use a real Windows child that does not finish, a child that exits without a result, a subsequent real BlinkVerdict preview child, and a blocked shortcut. The host's timer must restore task state and the Job Object must reclaim the blocked process. Rendering checks allocate a measured result surface against a 3840×2160 viewport, inspect native DIB alpha at background 0/180/255 during/after edit, and send a synthetic DPI-change message to the actual settings procedure while retaining a draft. They do not emulate HDR hardware, mixed-DPI physical monitors, actual 4K display performance or game compatibility. No real provider/credentials are used. These remain outside daily CI.
+The two runtime groups use a real Windows child that does not finish, a child that exits without a result, a subsequent real BlinkVerdict preview child, one real screenshot/native-HTTP request against a llama.cpp-shaped loopback fixture, and a blocked shortcut. The host's timer must restore task state and the Job Object must reclaim the blocked process. Rendering checks allocate a measured result surface against a 3840×2160 viewport, inspect native DIB alpha and actual layered-window hit testing/click-through at background 0/180/255 during/after edit, and send a synthetic DPI-change message to the actual settings procedure while retaining a draft. They do not emulate HDR hardware, mixed-DPI physical monitors, actual 4K display performance or game compatibility. No real provider/credentials are used. These remain outside daily CI.
 
 ## Before every release
 
