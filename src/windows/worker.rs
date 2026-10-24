@@ -352,6 +352,87 @@ mod tests {
             assert!(app.status.contains("最近决策：YES"), "{}", app.status);
             assert_eq!(app.text, "YES");
             assert!(app.visible);
+
+            // Exercise the production capture/HDR check -> private pipe -> native HTTP route once.
+            use std::{
+                io::{Read, Write},
+                net::TcpListener,
+            };
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let endpoint = format!("http://{}/v1", listener.local_addr().unwrap());
+            listener.set_nonblocking(true).unwrap();
+            let server = std::thread::spawn(move || {
+                let until = Instant::now() + Duration::from_secs(5);
+                let mut stream = loop {
+                    if let Ok((stream, _)) = listener.accept() {
+                        break stream;
+                    }
+                    assert!(
+                        Instant::now() < until,
+                        "child never reached the loopback fixture"
+                    );
+                    std::thread::sleep(Duration::from_millis(10));
+                };
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(3)))
+                    .unwrap();
+                let mut bytes = Vec::new();
+                loop {
+                    let mut part = [0u8; 4096];
+                    let count = stream.read(&mut part).unwrap();
+                    assert!(count > 0);
+                    bytes.extend_from_slice(&part[..count]);
+                    assert!(bytes.len() < 1_048_576);
+                    if let Some(offset) = bytes.windows(4).position(|b| b == b"\r\n\r\n") {
+                        let header = String::from_utf8_lossy(&bytes[..offset]).to_ascii_lowercase();
+                        let length = header
+                            .lines()
+                            .find_map(|line| {
+                                line.strip_prefix("content-length:")
+                                    .map(|n| n.trim().parse::<usize>().unwrap())
+                            })
+                            .unwrap();
+                        if bytes.len() < offset + 4 + length {
+                            continue;
+                        }
+                        assert!(header.contains("authorization: bearer runtime-synthetic-key"));
+                        assert!(header.starts_with("post /v1/chat/completions "));
+                        let body: serde_json::Value =
+                            serde_json::from_slice(&bytes[offset + 4..offset + 4 + length])
+                                .unwrap();
+                        assert_eq!(body["response_format"]["type"], "json_object");
+                        assert!(body.to_string().contains("data:image/png;base64,"));
+                        break;
+                    }
+                }
+                let body = r#"{"choices":[{"message":{"content":"{\"choice\":\"option_2\"}"}}]}"#;
+                write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+            });
+            app.hide();
+            let executable = std::env::var_os("BLINK_VERDICT_TEST_EXE").unwrap();
+            let mut command = Command::new(executable);
+            command.arg("--decision-worker");
+            let config = Config {
+                provider: blink_verdict::config::Provider::LlamaCpp,
+                endpoint,
+                model: "blink-local".into(),
+                vision: true,
+                ..Config::default()
+            };
+            let request = Request {
+                config,
+                key: "runtime-synthetic-key".into(),
+                preview: None,
+                rect: [0, 0, 320, 200],
+                hide: false,
+            };
+            app.worker =
+                Some(Worker::spawn(command, Some(request), Duration::from_secs(5)).unwrap());
+            app.busy = true;
+            SetTimer(app.host, WORKER_TIMER_ID, 50, None);
+            drive(app);
+            server.join().unwrap();
+            assert_eq!(app.text, "NO", "{}", app.status);
         }
     }
 }

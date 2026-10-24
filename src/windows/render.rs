@@ -572,6 +572,38 @@ mod tests {
                     }
                 }
                 assert_eq!(app.config.theme.widget_background_opacity, opacity);
+                let foreground = GetForegroundWindow();
+                app.command(CMD_EDIT);
+                let mut actual = RECT::default();
+                GetWindowRect(app.overlay, &mut actual).unwrap();
+                let point = POINT {
+                    x: actual.left + 6,
+                    y: (actual.top + actual.bottom) / 2,
+                };
+                assert_eq!(
+                    WindowFromPoint(point),
+                    app.overlay,
+                    "edit pane did not receive native hit testing at alpha {opacity}"
+                );
+                let packed = ((point.y as u32 & 0xffff) << 16) | (point.x as u32 & 0xffff);
+                assert_eq!(
+                    SendMessageW(
+                        app.overlay,
+                        WM_NCHITTEST,
+                        WPARAM(0),
+                        LPARAM(packed as isize)
+                    )
+                    .0,
+                    HTLEFT as isize
+                );
+                assert_eq!(GetForegroundWindow(), foreground);
+                app.command(CMD_EDIT);
+                assert_ne!(
+                    WindowFromPoint(point),
+                    app.overlay,
+                    "locked widget stopped passing clicks through"
+                );
+                assert_eq!(app.config.theme.widget_background_opacity, opacity);
             }
             app.config.mode = DisplayMode::Fullscreen;
             settings::open(app);
