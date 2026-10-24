@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      runtime_regressions:
+        description: Run targeted worker recovery, rendering and DPI regressions
+        type: boolean
+        default: false
       settings_regressions:
         description: Run only settings persistence and local-model regressions
         type: boolean
@@ -87,7 +91,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only && !inputs.settings_regressions
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only && !inputs.settings_regressions && !inputs.runtime_regressions
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -178,4 +182,22 @@ jobs:
           cargo test --locked --lib
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --locked --bin blink-verdict settings_regression -- --ignored --test-threads=1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+  runtime-regressions:
+    if: github.event_name == 'workflow_dispatch' && inputs.runtime_regressions
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build executable for real child-process regression
+        run: cargo build --locked --release
+      - name: Existing core groups and directly affected native regressions
+        shell: pwsh
+        run: |
+          cargo test --locked --lib
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:BLINK_VERDICT_TEST_EXE = (Resolve-Path target/release/blink-verdict.exe).Path
+          cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

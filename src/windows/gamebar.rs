@@ -12,10 +12,13 @@ use windows::{
     Win32::Foundation::RECT,
 };
 
-fn wait<T: RuntimeType + 'static>(operation: IAsyncOperation<T>) -> Result<T> {
+pub(super) fn wait<T: RuntimeType + 'static>(
+    operation: IAsyncOperation<T>,
+    timeout: Duration,
+) -> Result<T> {
     let start = Instant::now();
     while operation.Status()? == AsyncStatus::Started {
-        if start.elapsed() > Duration::from_secs(3) {
+        if start.elapsed() > timeout {
             let _ = operation.Cancel();
             return Err(windows::core::Error::from(windows::core::HRESULT(
                 0x800705B4u32 as i32,
@@ -34,7 +37,9 @@ impl Bridge {
             let connection = AppServiceConnection::new()?;
             connection.SetAppServiceName(&HSTRING::from("BlinkVerdictBridge"))?;
             connection.SetPackageFamilyName(&HSTRING::from(family))?;
-            if wait(connection.OpenAsync()?)? != AppServiceConnectionStatus::Success {
+            if wait(connection.OpenAsync()?, Duration::from_secs(3))?
+                != AppServiceConnectionStatus::Success
+            {
                 return Err(windows::core::Error::from(windows::core::HRESULT(
                     0x80004005u32 as i32,
                 )));
@@ -91,7 +96,7 @@ impl Bridge {
             });
             let message = ValueSet::new()?;
             message.Insert(&HSTRING::from("payload"), &PropertyValue::CreateString(&HSTRING::from(payload.to_string()))?)?;
-            let response = wait(self.0.SendMessageAsync(&message)?)?;
+            let response = wait(self.0.SendMessageAsync(&message)?, Duration::from_secs(3))?;
             if response.Status()? != AppServiceResponseStatus::Success { return Ok(false); }
             use windows::core::Interface;
             let value: IPropertyValue = response.Message()?.Lookup(&HSTRING::from("accepted"))?.cast()?;

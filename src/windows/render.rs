@@ -9,7 +9,7 @@ use windows::{
             Dxgi::Common::*,
             Gdi::*,
         },
-        UI::WindowsAndMessaging::{GetClientRect, UpdateLayeredWindow, ULW_ALPHA},
+        UI::{HiDpi::GetDpiForWindow, WindowsAndMessaging::*},
     },
 };
 
@@ -17,6 +17,7 @@ pub struct Renderer {
     target: ID2D1DCRenderTarget,
     write: IDWriteFactory,
     art: Option<(ID2D1Bitmap, D2D_RECT_F, [f32; 2])>,
+    layout: Option<IDWriteTextLayout>,
     hwnd: HWND,
     surface: Surface,
 }
@@ -93,18 +94,80 @@ fn color(value: &str) -> D2D1_COLOR_F {
 }
 
 impl Renderer {
-    pub unsafe fn new(hwnd: HWND, config: &Config, text: &str) -> Result<Self> {
+    pub unsafe fn new(hwnd: HWND, config: &Config, text: &str, bounds: RECT) -> Result<Self> {
         let factory: ID2D1Factory = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
+        let write: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+        let dpi = GetDpiForWindow(hwnd).max(96) as f32;
+        let scale = dpi / 96.0;
+        let image = super::art::load(config, text);
         let mut rect = RECT::default();
         GetClientRect(hwnd, &mut rect)?;
-        if config.mode == DisplayMode::Widget {
-            let region = CreateRoundRectRgn(0, 0, rect.right, rect.bottom, 48, 48);
+        let layout = if config.mode == DisplayMode::Fullscreen {
+            let max_width = (bounds.right - bounds.left).max(1) as f32 / scale;
+            let max_height = (bounds.bottom - bounds.top).max(1) as f32 / scale;
+            let (width, height, layout) = if let Some(image) = &image {
+                let ratio =
+                    (image.source[2] - image.source[0]) / (image.source[3] - image.source[1]);
+                let height = (config.theme.fullscreen_font_size as f32 * 3.0)
+                    .min((max_height - 96.0).max(1.0))
+                    .min((max_width - 32.0).max(1.0) / ratio);
+                (
+                    height * ratio * (1.0 + 2.0 * image.offset[0].abs()) + 32.0,
+                    height * (1.0 + 2.0 * image.offset[1].abs()) + 96.0,
+                    None,
+                )
+            } else {
+                let layout = text_layout(
+                    &write,
+                    text,
+                    &config.theme.font,
+                    config.theme.fullscreen_font_size as f32,
+                    (max_width * 0.88 - 32.0).max(1.0),
+                    (max_height * 0.88 - 96.0).max(1.0),
+                )?;
+                let mut metrics = DWRITE_TEXT_METRICS::default();
+                layout.GetMetrics(&mut metrics)?;
+                (
+                    metrics.widthIncludingTrailingWhitespace + 32.0,
+                    metrics.height + 96.0,
+                    Some(layout),
+                )
+            };
+            // Allocate/composite only the centered result bounds, including slide/AA padding.
+            // The rest of the monitor has no overlay surface at all.
+            let width = (width * scale)
+                .ceil()
+                .max(1.0)
+                .min((bounds.right - bounds.left).max(1) as f32) as i32;
+            let height = (height * scale)
+                .ceil()
+                .max(1.0)
+                .min((bounds.bottom - bounds.top).max(1) as f32) as i32;
+            SetWindowRgn(hwnd, HRGN::default(), false);
+            SetWindowPos(
+                hwnd,
+                None,
+                bounds.left + (bounds.right - bounds.left - width) / 2,
+                bounds.top + (bounds.bottom - bounds.top - height) / 2,
+                width,
+                height,
+                SWP_NOACTIVATE | SWP_NOZORDER,
+            )?;
+            rect = RECT {
+                left: 0,
+                top: 0,
+                right: width,
+                bottom: height,
+            };
+            layout
+        } else {
+            let radius = (48.0 * scale).round() as i32;
+            let region = CreateRoundRectRgn(0, 0, rect.right, rect.bottom, radius, radius);
             if SetWindowRgn(hwnd, region, false) == 0 {
                 let _ = DeleteObject(region);
             }
-        } else {
-            SetWindowRgn(hwnd, HRGN::default(), false);
-        }
+            None
+        };
 
         let properties = D2D1_RENDER_TARGET_PROPERTIES {
             r#type: D2D1_RENDER_TARGET_TYPE_DEFAULT,
@@ -112,9 +175,9 @@ impl Renderer {
                 format: DXGI_FORMAT_B8G8R8A8_UNORM,
                 alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED,
             },
-            // Explicit pixel units keep rendering consistent with per-monitor-aware geometry.
-            dpiX: 96.0,
-            dpiY: 96.0,
+            // Fonts, padding and motion use DIPs; the DIB remains physical pixels.
+            dpiX: dpi,
+            dpiY: dpi,
             ..Default::default()
         };
         // Layered windows use the supported DC/DIB + UpdateLayeredWindow path.
@@ -122,8 +185,7 @@ impl Renderer {
         let target = factory.CreateDCRenderTarget(&properties)?;
         target.BindDC(surface.dc, &rect)?;
         target.SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-        let write = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
-        let art = super::art::load(config, text).and_then(|image| {
+        let art = image.and_then(|image| {
             target
                 .CreateBitmap(
                     D2D_SIZE_U {
@@ -159,6 +221,7 @@ impl Renderer {
             target,
             write,
             art,
+            layout,
             hwnd,
             surface,
         })
@@ -182,9 +245,14 @@ impl Renderer {
             b: 0.0,
             a: 0.0,
         }));
-        if widget && config.theme.widget_background_opacity > 0 {
+        if widget && (editing || config.theme.widget_background_opacity > 0) {
             let mut tint = color(&config.theme.background_color);
-            tint.a = config.theme.widget_background_opacity as f32 / 255.0;
+            // A temporary edit surface keeps every interior pixel hittable even at 0%.
+            tint.a = config
+                .theme
+                .widget_background_opacity
+                .max(if editing { 48 } else { 0 }) as f32
+                / 255.0;
             let background = self.target.CreateSolidColorBrush(&tint, None)?;
             let border = self.target.CreateSolidColorBrush(
                 &D2D1_COLOR_F {
@@ -211,12 +279,12 @@ impl Renderer {
         let brush = self
             .target
             .CreateSolidColorBrush(&color(&config.theme.text_color), None)?;
-        let margin = if widget { 18.0 } else { size.width * 0.06 };
-        let top = if widget { 12.0 } else { margin };
+        let margin = if widget { 18.0 } else { 16.0 };
+        let top = if widget { 12.0 } else { 48.0 };
         let bottom = if widget {
             size.height - 28.0
         } else {
-            size.height - margin
+            size.height - 48.0
         };
         let rect = D2D_RECT_F {
             left: margin,
@@ -260,6 +328,18 @@ impl Renderer {
                 1.0,
                 D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
                 Some(source),
+            );
+        } else if let Some(layout) = &self.layout {
+            let mut metrics = DWRITE_TEXT_METRICS::default();
+            layout.GetMetrics(&mut metrics)?;
+            self.target.DrawTextLayout(
+                D2D_POINT_2F {
+                    x: (size.width - metrics.widthIncludingTrailingWhitespace) / 2.0 - metrics.left,
+                    y: (size.height - metrics.height) / 2.0 - metrics.top,
+                },
+                layout,
+                &brush,
+                D2D1_DRAW_TEXT_OPTIONS_CLIP,
             );
         } else {
             self.text(text, &config.theme.font, font_size, rect, &brush)?;
@@ -329,35 +409,14 @@ impl Renderer {
         rect: D2D_RECT_F,
         brush: &ID2D1SolidColorBrush,
     ) -> Result<()> {
-        let family: Vec<u16> = family.encode_utf16().chain(Some(0)).collect();
-        let content: Vec<u16> = text.encode_utf16().collect();
-        let width = rect.right - rect.left;
-        let height = rect.bottom - rect.top;
-        // Measure wrapped text and reduce the font if a custom result would be clipped.
-        let make = |size| -> Result<IDWriteTextLayout> {
-            let format = self.write.CreateTextFormat(
-                PCWSTR(family.as_ptr()),
-                None,
-                DWRITE_FONT_WEIGHT_NORMAL,
-                DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                size,
-                w!("zh-CN"),
-            )?;
-            format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
-            format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
-            self.write
-                .CreateTextLayout(&content, &format, width, height)
-        };
-        let mut layout = make(size)?;
-        let mut metrics = DWRITE_TEXT_METRICS::default();
-        layout.GetMetrics(&mut metrics)?;
-        if metrics.height > height || metrics.width > width {
-            let ratio = (height / metrics.height)
-                .min(width / metrics.width.max(1.0))
-                .min(1.0);
-            layout = make((size * ratio * 0.95).max(8.0))?;
-        }
+        let layout = text_layout(
+            &self.write,
+            text,
+            family,
+            size,
+            rect.right - rect.left,
+            rect.bottom - rect.top,
+        )?;
         self.target.DrawTextLayout(
             D2D_POINT_2F {
                 x: rect.left,
@@ -368,5 +427,185 @@ impl Renderer {
             D2D1_DRAW_TEXT_OPTIONS_CLIP,
         );
         Ok(())
+    }
+}
+
+unsafe fn text_layout(
+    write: &IDWriteFactory,
+    text: &str,
+    family: &str,
+    size: f32,
+    width: f32,
+    height: f32,
+) -> Result<IDWriteTextLayout> {
+    let family: Vec<u16> = family.encode_utf16().chain(Some(0)).collect();
+    let content: Vec<u16> = text.encode_utf16().collect();
+    // Measure wrapped text and reduce the font if a custom result would be clipped.
+    let make = |size| -> Result<IDWriteTextLayout> {
+        let format = write.CreateTextFormat(
+            PCWSTR(family.as_ptr()),
+            None,
+            DWRITE_FONT_WEIGHT_NORMAL,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            size,
+            w!("zh-CN"),
+        )?;
+        format.SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER)?;
+        format.SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER)?;
+        write.CreateTextLayout(&content, &format, width, height)
+    };
+    let mut layout = make(size)?;
+    let mut metrics = DWRITE_TEXT_METRICS::default();
+    layout.GetMetrics(&mut metrics)?;
+    if metrics.height > height || metrics.width > width {
+        let ratio = (height / metrics.height)
+            .min(width / metrics.width.max(1.0))
+            .min(1.0);
+        layout = make((size * ratio * 0.95).max(8.0))?;
+    }
+    Ok(layout)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::windows::*;
+
+    #[test]
+    #[ignore = "targeted Windows regression: bounded 4K surface, native edit alpha and DPI draft retention"]
+    fn runtime_regression_surface_and_dpi() {
+        unsafe {
+            let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+            let mut fixture = TestApp::new();
+            let app = &mut fixture.0;
+            let bounds = RECT {
+                left: 0,
+                top: 0,
+                right: 3840,
+                bottom: 2160,
+            };
+            for text in [
+                "YES",
+                "NO",
+                "这是一个较长的自定义中文答案",
+                "第一行\n第二行",
+            ] {
+                let renderer = Renderer::new(app.overlay, &app.config, text, bounds).unwrap();
+                let pixels = renderer.surface.size.cx * renderer.surface.size.cy;
+                println!(
+                    "4K viewport result {text:?}: {} x {} pixels, {} DIB bytes",
+                    renderer.surface.size.cx,
+                    renderer.surface.size.cy,
+                    pixels * 4
+                );
+                assert!(
+                    pixels < 3840 * 2160 / 2,
+                    "short result still allocates the full monitor"
+                );
+                renderer
+                    .paint(
+                        &app.config,
+                        text,
+                        false,
+                        blink_verdict::animation::sample(
+                            blink_verdict::config::Animation::Slide,
+                            0.11,
+                            None,
+                        ),
+                    )
+                    .unwrap();
+                let mut rect = RECT::default();
+                GetWindowRect(app.overlay, &mut rect).unwrap();
+                assert!(((rect.left + rect.right) - 3840).abs() <= 1);
+                assert!(((rect.top + rect.bottom) - 2160).abs() <= 1);
+            }
+            for dpi in [96, 144, 192] {
+                assert_eq!(display::pixels(320, dpi), (320 * dpi / 96) as i32);
+                assert_eq!(display::logical(display::pixels(320, dpi), dpi), 320);
+            }
+            app.config.mode = DisplayMode::Widget;
+            SetWindowPos(
+                app.overlay,
+                None,
+                10,
+                10,
+                320,
+                140,
+                SWP_NOACTIVATE | SWP_NOZORDER,
+            )
+            .unwrap();
+            for opacity in [0, 180, 255] {
+                app.config.theme.widget_background_opacity = opacity;
+                let renderer = Renderer::new(app.overlay, &app.config, "YES", bounds).unwrap();
+                let mut dib = DIBSECTION::default();
+                assert_ne!(
+                    GetObjectW(
+                        renderer.surface.bitmap,
+                        std::mem::size_of_val(&dib) as i32,
+                        Some((&mut dib as *mut DIBSECTION).cast())
+                    ),
+                    0
+                );
+                for editing in [false, true] {
+                    renderer
+                        .paint(
+                            &app.config,
+                            "YES",
+                            editing,
+                            blink_verdict::animation::sample(
+                                blink_verdict::config::Animation::None,
+                                1.0,
+                                None,
+                            ),
+                        )
+                        .unwrap();
+                    let pixels = std::slice::from_raw_parts(
+                        dib.dsBm.bmBits.cast::<u8>(),
+                        (320 * 140 * 4) as usize,
+                    );
+                    let alpha = pixels[(70 * 320 + 8) * 4 + 3];
+                    if opacity == 0 && !editing {
+                        assert_eq!(alpha, 0);
+                    } else {
+                        assert!(alpha > 0);
+                    }
+                }
+                assert_eq!(app.config.theme.widget_background_opacity, opacity);
+            }
+            app.config.mode = DisplayMode::Fullscreen;
+            settings::open(app);
+            SendMessageW(app.settings, WM_COMMAND, WPARAM(211), LPARAM(0));
+            let control = GetDlgItem(app.settings, 313).unwrap();
+            SetWindowTextW(control, w!("unsaved-model-name")).unwrap();
+            let mut suggested = RECT::default();
+            GetWindowRect(app.settings, &mut suggested).unwrap();
+            let foreground = GetForegroundWindow();
+            SendMessageW(
+                app.settings,
+                WM_DPICHANGED,
+                WPARAM(192 | (192 << 16)),
+                LPARAM((&suggested as *const RECT) as isize),
+            );
+            let control = GetDlgItem(app.settings, 313).unwrap();
+            let mut value = [0u16; 64];
+            let count = GetWindowTextW(control, &mut value);
+            assert_eq!(
+                String::from_utf16_lossy(&value[..count as usize]),
+                "unsaved-model-name"
+            );
+            assert_eq!(GetForegroundWindow(), foreground);
+            let mut actual = RECT::default();
+            GetWindowRect(app.settings, &mut actual).unwrap();
+            let work =
+                display::monitor_info(MonitorFromWindow(app.settings, MONITOR_DEFAULTTONEAREST))
+                    .rcWork;
+            assert!(
+                actual.left >= work.left
+                    && actual.top >= work.top
+                    && actual.right <= work.right
+                    && actual.bottom <= work.bottom
+            );
+        }
     }
 }

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Run each capture/OCR/provider/Game Bar task in an on-demand child with private pipe IPC and a kill-on-close Job Object; enforce a host deadline, recover from worker exit, and stop depending on completion messages. Bound OCR waits and keep Game Bar cleanup off the UI thread.
+- Scale overlay fonts, widget logical dimensions and resize hit zones per monitor. Open settings on the interaction monitor and rebuild fonts/controls on DPI changes without dropping drafts.
+- Crop fullscreen surfaces to measured text/art plus animation padding, rather than allocating the entire monitor. Keep a temporary hittable edit pane even with a saved 0% background.
+- Report shortcut registration failure visibly on startup/resume, guard inactive shortcuts, and show nonactivating native notifications for task failures.
+- Refuse GDI capture when the selected monitor reports enabled HDR/advanced color; no HDR tone-mapping claim. New configs use a 45-second provider timeout; existing values are retained.
+
 - Add a dedicated llama.cpp / llama-server preset, native schema-constrained choices and a local setup guide; retain existing compatible adapters.
 - Keep the saved Game Bar family when saving from About; only the Game Bar page edits it.
 - Restore the previous credential for the edited endpoint when configuration saving fails, including key replacement/deletion.

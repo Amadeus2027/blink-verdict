@@ -150,7 +150,7 @@ impl Default for Config {
             endpoint: endpoint.into(),
             model: model.into(),
             vision: true,
-            timeout_seconds: 15,
+            timeout_seconds: 45,
             output_tokens: 1024,
             ollama_unload_after_request: false,
             gamebar_package_family: String::new(),
