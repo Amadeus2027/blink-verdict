@@ -26,6 +26,10 @@ cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
 
 The two runtime groups use a real Windows child that does not finish, a child that exits without a result, a subsequent real BlinkVerdict preview child, one real screenshot/native-HTTP request against a llama.cpp-shaped loopback fixture, and a blocked shortcut. The host's timer must restore task state and the Job Object must reclaim the blocked process. Rendering checks allocate a measured result surface against a 3840×2160 viewport, inspect native DIB alpha and actual layered-window hit testing/click-through at background 0/180/255 during/after edit, and send a synthetic DPI-change message to the actual settings procedure while retaining a draft. They do not emulate HDR hardware, mixed-DPI physical monitors, actual 4K display performance or game compatibility. No real provider/credentials are used. These remain outside daily CI.
 
+## Focused Game Bar message ordering
+
+Run `./scripts/tests/gamebar-order.ps1` on Windows, or dispatch `check.yml` with `gamebar_order_regression=true`. The script compiles the actual production `DisplayOrder.cs` and deterministically exercises delayed old hide/new show, old show after a newer hide, stale disconnect, suspended async continuation, a closed queued operation and retry. No sleeps, Game Bar installation, real provider or credentials are required. It stays outside daily CI and is included before releases. This is an ordering regression, not end-to-end Game Bar certification.
+
 ## Before every release
 
 Use the [release preparation workflow](releases/README.md) and create a record from `docs/releases/TEMPLATE.md` with the candidate commit and actual evidence. The workflow is manual and does not expand daily CI. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
@@ -33,7 +37,7 @@ Use the [release preparation workflow](releases/README.md) and create a record f
 1. `cargo fmt --all -- --check`, `cargo test --locked --lib`, `cargo build --locked --release` on Windows.
 2. Run all four settings/runtime regressions above (with the built executable configured), then `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all eleven protocol adapters / variants and both input routes, credentials in headers, default service residency and optional Ollama unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
 3. The release-only workflow additionally checks the real registered shortcut, PNG capture, loopback choice, busy repeat suppression, foreground/keyboard/mouse delivery on a synthetic receiver, and 60-sample hidden-fresh/hidden-after-use/visible-widget metrics. These do not certify games, live services or endurance.
-4. Run the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
+4. Run the focused Game Bar ordering script above, then the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
 
 ## Windows manual matrix (stored outside daily tests)
 

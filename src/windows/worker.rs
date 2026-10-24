@@ -15,6 +15,7 @@ struct Request {
     preview: Option<String>,
     rect: [i32; 4],
     hide: bool,
+    operation: i64,
 }
 
 struct Job(HANDLE);
@@ -39,6 +40,7 @@ impl Worker {
         preview: Option<String>,
         rect: RECT,
         hide: bool,
+        operation: i64,
     ) -> Result<Self, String> {
         let budget = if hide || preview.is_some() {
             12
@@ -51,6 +53,7 @@ impl Worker {
             preview,
             rect: [rect.left, rect.top, rect.right, rect.bottom],
             hide,
+            operation,
         };
         let path = std::env::current_exe().map_err(|_| "无法定位任务程序".to_string())?;
         let mut command = Command::new(path);
@@ -183,6 +186,7 @@ unsafe fn execute(request: Request) -> Result<(String, bool, String), String> {
         preview,
         rect: [left, top, right, bottom],
         hide,
+        operation,
     } = request;
     let rect = RECT {
         left,
@@ -191,7 +195,7 @@ unsafe fn execute(request: Request) -> Result<(String, bool, String), String> {
         bottom,
     };
     if hide {
-        let bridge = gamebar::Bridge::connect(&config.gamebar_package_family)?;
+        let bridge = gamebar::Bridge::connect(&config.gamebar_package_family, operation)?;
         bridge.send(&config, "hide", "", rect)?;
         return Ok((String::new(), true, String::new()));
     }
@@ -199,7 +203,10 @@ unsafe fn execute(request: Request) -> Result<(String, bool, String), String> {
     let bridge = if config.gamebar_package_family.is_empty() {
         None
     } else {
-        Some(gamebar::Bridge::connect(&config.gamebar_package_family)?)
+        Some(gamebar::Bridge::connect(
+            &config.gamebar_package_family,
+            operation,
+        )?)
     };
     if let Some(bridge) = &bridge {
         bridge.send(&config, "hide", "", rect)?;
@@ -343,6 +350,7 @@ mod tests {
                 preview: Some("YES".into()),
                 rect: [0, 0, 1920, 1080],
                 hide: false,
+                operation: 0,
             };
             app.worker =
                 Some(Worker::spawn(command, Some(request), Duration::from_secs(5)).unwrap());
@@ -425,6 +433,7 @@ mod tests {
                 preview: None,
                 rect: [0, 0, 320, 200],
                 hide: false,
+                operation: 0,
             };
             app.worker =
                 Some(Worker::spawn(command, Some(request), Duration::from_secs(5)).unwrap());

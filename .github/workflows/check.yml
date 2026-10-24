@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      gamebar_order_regression:
+        description: Run only the focused Game Bar message-order regression
+        type: boolean
+        default: false
       runtime_regressions:
         description: Run targeted worker recovery, rendering and DPI regressions
         type: boolean
@@ -91,7 +95,7 @@ jobs:
           if-no-files-found: error
 
   showcase-capture:
-    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only && !inputs.settings_regressions && !inputs.runtime_regressions
+    if: github.event_name == 'workflow_dispatch' && !inputs.release_candidate && !inputs.upload_only && !inputs.settings_regressions && !inputs.runtime_regressions && !inputs.gamebar_order_regression
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
@@ -201,3 +205,13 @@ jobs:
           $env:BLINK_VERDICT_TEST_EXE = (Resolve-Path target/release/blink-verdict.exe).Path
           cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+  gamebar-order-regression:
+    if: github.event_name == 'workflow_dispatch' && inputs.gamebar_order_regression
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delayed Game Bar operation regression only
+        shell: pwsh
+        run: ./scripts/tests/gamebar-order.ps1

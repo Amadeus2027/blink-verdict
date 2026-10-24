@@ -75,6 +75,7 @@ pub(super) struct App {
     display_rect: RECT,
     hotkey_active: bool,
     settings_monitor: HMONITOR,
+    gamebar_operation: i64,
     settings_ui: Option<settings::Settings>,
     taskbar_created: u32,
 }
@@ -161,6 +162,7 @@ pub fn run() {
             display_rect: RECT::default(),
             hotkey_active: false,
             settings_monitor: display::interaction_monitor(),
+            gamebar_operation: 0,
             taskbar_created: RegisterWindowMessageW(w!("TaskbarCreated")),
         });
         SetWindowLongPtrW(host, GWLP_USERDATA, (&mut *app as *mut App) as isize);
@@ -529,20 +531,37 @@ impl App {
         );
     }
 
+    /// Allocate display intent before scheduling any asynchronous delivery.
+    unsafe fn next_gamebar_operation(&mut self) -> i64 {
+        // QPC is monotonic across processes on supported Windows versions, so a
+        // restarted host still sorts after requests from its previous instance.
+        let mut counter = 0;
+        let _ = windows::Win32::System::Performance::QueryPerformanceCounter(&mut counter);
+        self.gamebar_operation = counter.max(self.gamebar_operation.saturating_add(1));
+        self.gamebar_operation
+    }
+
     /// Only explicit tray/settings actions call this. Never block the decision hotkey UI.
-    unsafe fn clear_gamebar(&self) {
+    unsafe fn clear_gamebar(&mut self) {
         if self.config.gamebar_package_family.is_empty() {
             return;
         }
         let config = self.config.clone();
+        // Allocate on the UI thread, before a helper can be delayed by scheduling.
+        let operation = self.next_gamebar_operation();
         // Explicit UI actions never join an IPC thread. Each helper has the same
         // process deadline/kill-on-close ownership as a decision.
         let _ = std::thread::Builder::new()
             .name("gamebar-hide".into())
             .spawn(move || {
-                if let Ok(mut task) =
-                    worker::Worker::start(config, String::new(), None, RECT::default(), true)
-                {
+                if let Ok(mut task) = worker::Worker::start(
+                    config,
+                    String::new(),
+                    None,
+                    RECT::default(),
+                    true,
+                    operation,
+                ) {
                     loop {
                         if matches!(task.poll(), Some(WorkerEvent::Finished(_))) {
                             break;
@@ -764,7 +783,12 @@ impl App {
         self.busy = true;
         self.capture_rect = rect;
         self.set_status("正在思考…".into());
-        match worker::Worker::start(config, key, preview, rect, false) {
+        let operation = if config.gamebar_package_family.is_empty() {
+            0
+        } else {
+            self.next_gamebar_operation()
+        };
+        match worker::Worker::start(config, key, preview, rect, false, operation) {
             Ok(worker) => self.worker = Some(worker),
             Err(error) => {
                 self.busy = false;
@@ -1061,6 +1085,7 @@ impl TestApp {
             display_rect: RECT::default(),
             hotkey_active: false,
             settings_monitor: display::interaction_monitor(),
+            gamebar_operation: 0,
             settings_ui: None,
             taskbar_created: 0,
         });
