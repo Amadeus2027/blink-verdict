@@ -1,6 +1,16 @@
 # Development validation
 
-Updated: 2026-10-23. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
+Updated: 2026-10-24. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
+
+## Game Bar delayed-operation follow-up
+
+[PR #11](https://github.com/Amadeus2027/blink-verdict/pull/11) fixes a race introduced by asynchronous Game Bar cleanup: an old helper's hide or ServiceClosed callback could clear a newer result/processing state. Operation IDs are assigned by the host UI before dispatch, carried through private worker IPC, and checked by the component before mutations and after awaits. Closed/failed operations are retired; newer work does not wait for older async calls. A payload-free v2 probe prevents sending ordered display commands to an incompatible component. The host and optional component must be updated together.
+
+[Focused Windows regression](https://github.com/Amadeus2027/blink-verdict/actions/runs/40074104560), `02c8539`, compiles the production C# ordering gate and passes deterministic delayed-hide/new-show, delayed-show/new-hide, stale disconnect, old async continuation, retired queued action and retry cases. No sleeps, real model, credentials, installed Game Bar or game are used. This is not an AppService/UI end-to-end certification. The script is manual/outside daily CI and included before releases.
+
+Linux: four existing core groups, formatting and Windows-GNU all-target Clippy passed. [Windows native/core/package and UWP build](https://github.com/Amadeus2027/blink-verdict/actions/runs/40073884740) passed on `e75e213`; subsequent production changes only remove the async serialization wait in favor of supersession checks, covered by the focused regression. Final-head checks are available on the PR.
+
+The first regular Windows run exposed a mock-server issue: accepted sockets could inherit nonblocking mode and raise WouldBlock before request data arrived. Explicitly switch accepted sockets to blocking in the existing core/release/runtime fixtures; no production transport or test count changed. No broad release/performance suite was run; real Game Bar installation, mismatched-package handshake and games remain manual acceptance items.
 
 ## Runtime recovery and monitor-DPI follow-up
 
