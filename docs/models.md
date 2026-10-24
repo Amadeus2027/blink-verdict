@@ -19,6 +19,14 @@ Jev 图片输入是厂商实验能力，选截图输入时发送其要求的 `Ty
 
 这四种专用接口都发送用户的目标和固定选项，额外提供 `uncertain` 作为无法判断选项。结果直接读取结构化 choice，不要求模型先生成解释再解析文字。概率、置信度如有返回，可在托盘状态查看；只在进程内保留最近状态，不写判断历史。不同服务的置信度定义不同，不做统一正确率承诺或强制阈值。
 
+## llama.cpp · 优先本机接入
+
+选择“llama.cpp · 本机”，默认地址为 `http://127.0.0.1:8080/v1`，模型名称为 `blink-local`。该名称对应启动 `llama-server` 时设置的 `--alias`；已有服务填写实际模型 ID。默认使用本机 OCR，视觉模型可自行切换为截图输入。
+
+程序使用 `/chat/completions` 和 llama-server 原生 JSON Schema 约束，让输出限定为已有选项 ID 或明确弃权。不会启动、卸载或定时查询模型。原有“OpenAI 兼容”配置继续可用；新协议单独保存密钥，切换后如有认证需重新填写。
+
+[启动命令、视觉模型与连接排查 →](llama-cpp.md)
+
 ## 本地决策服务
 
 本地模式依然通过 HTTP 请求已启动的服务。无认证时密钥可留空；有认证则填写对应服务的密钥。回环地址绕过系统代理，允许 HTTP；远程地址要求 HTTPS。
@@ -45,6 +53,8 @@ vllm serve Cloudflare/clef-flash --max-model-len 16384
 
 OpenAI Chat Completions、Responses、Anthropic、Gemini 和 Ollama 接口全部保留，含 DeepSeek、Qwen、SiliconFlow、OpenRouter 和 LM Studio 预设。模型必须能输出应用要求的严格 JSON；截图要求视觉模型，文字模型请选本机 OCR。
 
+Ollama 默认不发送 `keep_alive`，遵循服务自身的模型驻留策略；可在“连接选项 → Ollama · 模型驻留”选择“用后释放模型”。释放有助于减少服务资源占用，但下一次可能重新加载模型。该选项不影响 llama.cpp 和其他接口。
+
 常规接口使用 64–8192 的最大输出 token 设置；专用决策接口不发送该参数，界面会禁用该字段。已有配置中的协议、地址、模型和凭据目标不变；新安装默认 Jev。
 
 ## 协议来源与验证范围
@@ -53,6 +63,7 @@ OpenAI Chat Completions、Responses、Anthropic、Gemini 和 Ollama 接口全部
 - [Perplexity Decisions](https://docs.perplexity.ai/api-reference/decisions-post)
 - [Cloudflare Clef](https://developers.cloudflare.com/workers-ai/models/clef/)
 - [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions)
+- [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) · [llama.cpp 多模态](https://github.com/ggml-org/llama.cpp/tree/master/tools/mtmd)
 - [vLLM 本地结构化决策](https://docs.vllm.ai/en/latest/models/structured_decisions_models/)
 
 协议实现依据以上官方文档，并使用合成样例验证请求 / 答案映射。真实服务、账号授权、模型质量与本地权重运行仍需发行前验证；没有使用用户密钥进行在线测试。

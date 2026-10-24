@@ -42,6 +42,7 @@ pub enum Provider {
     Anthropic,
     Gemini,
     Ollama,
+    LlamaCpp,
 }
 
 impl Provider {
@@ -70,6 +71,7 @@ impl Provider {
                 "gemini-2.5-flash",
             ),
             Self::Ollama => ("http://127.0.0.1:11434", "gemma3:4b"),
+            Self::LlamaCpp => ("http://127.0.0.1:8080/v1", "blink-local"),
         }
     }
 }
@@ -124,6 +126,8 @@ pub struct Config {
     pub vision: bool,
     pub timeout_seconds: u32,
     pub output_tokens: u32,
+    /// False omits keep_alive so Ollama applies its own residency policy.
+    pub ollama_unload_after_request: bool,
     /// Empty uses the native overlay. Otherwise route display to the optional Game Bar package.
     pub gamebar_package_family: String,
     pub theme: Theme,
@@ -148,6 +152,7 @@ impl Default for Config {
             vision: true,
             timeout_seconds: 15,
             output_tokens: 1024,
+            ollama_unload_after_request: false,
             gamebar_package_family: String::new(),
             theme: Theme::default(),
             widget_x: 48,
@@ -241,12 +246,15 @@ mod tests {
         c.theme.widget_background_opacity = 0;
         c.widget_x = -1920;
         c.widget_width = 600;
+        c.ollama_unload_after_request = true;
         let copy: Config = serde_json::from_str(&serde_json::to_string(&c).unwrap()).unwrap();
         assert_eq!(copy.options, c.options);
+        assert!(copy.ollama_unload_after_request);
         assert_eq!(copy.theme.widget_background_opacity, 0);
         assert_eq!((copy.widget_x, copy.widget_width), (-1920, 600));
         let legacy: Config = serde_json::from_value(serde_json::json!({"provider":"OpenAi","endpoint":"https://api.openai.com/v1","model":"gpt-4o-mini"})).unwrap();
         assert_eq!(legacy.provider, Provider::OpenAi);
+        assert!(!legacy.ollama_unload_after_request);
         let legacy_theme: Theme = serde_json::from_str(r#"{"opacity":200}"#).unwrap();
         assert_eq!(legacy_theme.widget_background_opacity, 180);
         assert_eq!(legacy_theme.opacity, 200);

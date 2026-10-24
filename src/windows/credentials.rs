@@ -77,3 +77,109 @@ pub fn write(config: &Config, key: &str) -> Result<(), String> {
             .map_err(|_| "无法保存密钥到 Windows 凭据管理器（密钥长度上限为 2560 字节）".into())
     }
 }
+
+/// Coordinate settings persistence with the credential stored for the new endpoint.
+/// No credential access is needed when the user has not edited the key.
+pub fn save_config(
+    config: &Config,
+    key: Option<&str>,
+    path: &std::path::Path,
+) -> Result<(), String> {
+    let Some(key) = key else {
+        return config.save(path);
+    };
+    let previous = read(config)?;
+    write(config, key)?;
+    if let Err(error) = config.save(path) {
+        if let Err(rollback) = write(config, &previous) {
+            return Err(format!(
+                "{error}\n旧密钥恢复失败：{rollback}。请在 Windows 凭据管理器中核对该服务的密钥。"
+            ));
+        }
+        return Err(error);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{
+        fs,
+        os::windows::fs::OpenOptionsExt,
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    #[test]
+    #[ignore = "targeted Windows regression: real credential rollback against a locked config"]
+    fn settings_regression_failed_save_restores_credentials() {
+        struct Fixture {
+            config: Config,
+            alternate: Config,
+            directory: PathBuf,
+        }
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                let _ = write(&self.config, "");
+                let _ = write(&self.alternate, "");
+                let _ = fs::remove_dir_all(&self.directory);
+            }
+        }
+        let id = format!(
+            "{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let config = Config {
+            endpoint: format!("https://settings-regression.invalid/{id}"),
+            ..Config::default()
+        };
+        let alternate = Config {
+            endpoint: format!("https://settings-regression.invalid/{id}/alternate"),
+            ..config.clone()
+        };
+        let fixture = Fixture {
+            config,
+            alternate,
+            directory: std::env::temp_dir().join(format!("blink-settings-{id}")),
+        };
+        let path = fixture.directory.join("config.json");
+        fixture.config.save(&path).unwrap();
+        let original = fs::read(&path).unwrap();
+        assert_eq!(read(&fixture.config).unwrap(), "");
+        write(&fixture.config, "old-test-key").unwrap();
+        write(&fixture.alternate, "alternate-old-test-key").unwrap();
+        let changed = Config {
+            prompt: "Changed task".into(),
+            ..fixture.config.clone()
+        };
+        // Deny deletion/replacement while allowing the old config to be read.
+        let locked = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(1)
+            .open(&path)
+            .unwrap();
+        for pending in [Some("replacement-test-key"), Some(""), None] {
+            assert!(save_config(&changed, pending, &path).is_err());
+            assert_eq!(read(&fixture.config).unwrap(), "old-test-key");
+            assert_eq!(fs::read(&path).unwrap(), original);
+        }
+        assert!(save_config(&fixture.alternate, Some("new-alternate-key"), &path).is_err());
+        assert_eq!(read(&fixture.alternate).unwrap(), "alternate-old-test-key");
+        assert_eq!(read(&fixture.config).unwrap(), "old-test-key");
+        write(&fixture.config, "").unwrap();
+        assert!(save_config(&changed, Some("new-test-key"), &path).is_err());
+        assert_eq!(read(&fixture.config).unwrap(), "");
+        assert_eq!(fs::read(&path).unwrap(), original);
+        drop(locked);
+        save_config(&changed, Some("replacement-test-key"), &path).unwrap();
+        assert_eq!(Config::load(&path).unwrap(), changed);
+        assert_eq!(read(&fixture.config).unwrap(), "replacement-test-key");
+        save_config(&changed, Some(""), &path).unwrap();
+        assert_eq!(read(&fixture.config).unwrap(), "");
+    }
+}

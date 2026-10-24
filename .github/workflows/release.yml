@@ -36,6 +36,8 @@ jobs:
         run: |
           cargo test --locked --lib
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo test --locked --bin blink-verdict settings_regression -- --ignored --test-threads=1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --locked --test release_providers -- --ignored
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo build --locked --release

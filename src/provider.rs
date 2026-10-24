@@ -117,15 +117,25 @@ fn request_parts(config: &Config, observation: &Observation) -> (String, Value) 
                 "questions":[{"type":"choice","name":"decision","instructions":decision_instructions(config),"choices":choices}]}),
             )
         }
-        Provider::OpenAi => {
+        Provider::OpenAi | Provider::LlamaCpp => {
             let mut content = vec![json!({"type":"text", "text":text})];
             if let Some(b64) = image {
                 content.push(json!({"type":"image_url", "image_url":{"url":format!("data:image/png;base64,{b64}")}}));
             }
-            (
-                format!("{base}/chat/completions"),
-                json!({"model":config.model,"messages":[{"role":"system","content":task},{"role":"user","content":content}],"max_tokens":config.output_tokens}),
-            )
+            let mut body = json!({"model":config.model,"messages":[{"role":"system","content":task},{"role":"user","content":content}],"max_tokens":config.output_tokens});
+            if config.provider == Provider::LlamaCpp {
+                body["stream"] = json!(false);
+                let mut choices: Vec<Value> = (1..=config.options.len())
+                    .map(|i| json!(format!("option_{i}")))
+                    .collect();
+                choices.push(Value::Null);
+                // llama-server documents schema-constrained json_object output.
+                body["response_format"] = json!({"type":"json_object","schema":{
+                    "type":"object", "properties":{"choice":{"enum":choices}},
+                    "required":["choice"], "additionalProperties":false
+                }});
+            }
+            (format!("{base}/chat/completions"), body)
         }
         Provider::OpenAiResponses => {
             let mut content = vec![json!({"type":"input_text", "text":text})];
@@ -165,10 +175,11 @@ fn request_parts(config: &Config, observation: &Observation) -> (String, Value) 
             if let Some(b64) = image {
                 message["images"] = json!([b64]);
             }
-            (
-                format!("{base}/api/chat"),
-                json!({"model":config.model,"messages":[{"role":"system","content":task},message],"stream":false,"format":"json","keep_alive":0,"options":{"num_predict":config.output_tokens}}),
-            )
+            let mut body = json!({"model":config.model,"messages":[{"role":"system","content":task},message],"stream":false,"format":"json","options":{"num_predict":config.output_tokens}});
+            if config.ollama_unload_after_request {
+                body["keep_alive"] = json!(0);
+            }
+            (format!("{base}/api/chat"), body)
         }
     }
 }
@@ -180,7 +191,7 @@ fn extract_text(provider: Provider, value: &Value) -> Result<String, String> {
         | Provider::Decider
         | Provider::Clef
         | Provider::OpenAiDecisions => return Err("专用决策接口应返回结构化答案".into()),
-        Provider::OpenAi => value
+        Provider::OpenAi | Provider::LlamaCpp => value
             .pointer("/choices/0/message/content")
             .and_then(Value::as_str)
             .into_iter()
@@ -381,6 +392,7 @@ mod tests {
             Provider::Anthropic,
             Provider::Gemini,
             Provider::Ollama,
+            Provider::LlamaCpp,
         ] {
             c.provider = p;
             c.endpoint = p.defaults().0.into();
@@ -390,6 +402,41 @@ mod tests {
             assert!(body.to_string().contains("AQID"));
             let (_, text_body) = request_parts(&c, &Observation::Text("screen words".into()));
             assert!(text_body.to_string().contains("screen words"));
+        }
+        c.provider = Provider::LlamaCpp;
+        c.endpoint = c.provider.defaults().0.into();
+        for input in [
+            Observation::Text("screen".into()),
+            Observation::Image(vec![1, 2, 3]),
+        ] {
+            let (url, body) = request_parts(&c, &input);
+            assert_eq!(url, "http://127.0.0.1:8080/v1/chat/completions");
+            assert_eq!(
+                body["response_format"]["schema"]["properties"]["choice"]["enum"],
+                json!(["option_1", "option_2", null])
+            );
+            assert_eq!(body["stream"], false);
+            assert!(body.get("keep_alive").is_none());
+            assert_eq!(
+                parse_decision(
+                    &c,
+                    &json!({"choices":[{"message":{"content":"{\"choice\":\"option_2\"}"}}]})
+                )
+                .unwrap()
+                .verdict,
+                Verdict::Choice(1)
+            );
+        }
+        c.provider = Provider::Ollama;
+        for unload in [false, true] {
+            c.ollama_unload_after_request = unload;
+            for input in [
+                Observation::Text("screen".into()),
+                Observation::Image(vec![1, 2, 3]),
+            ] {
+                let (_, body) = request_parts(&c, &input);
+                assert_eq!(body.get("keep_alive"), unload.then_some(json!(0)).as_ref());
+            }
         }
         // Official structured decision formats differ: OpenAI uses arrays, the others maps.
         for p in [

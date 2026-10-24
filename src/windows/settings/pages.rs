@@ -94,6 +94,7 @@ impl Settings {
                         Provider::Anthropic => 11,
                         Provider::Gemini => 12,
                         Provider::Ollama => 13,
+                        Provider::LlamaCpp => 17,
                         _ => 0,
                     }
                 } else {
@@ -121,6 +122,7 @@ impl Settings {
                         "System One · 本机",
                         "Decider · 本机",
                         "OpenAI Decisions · 本机",
+                        "llama.cpp · 本机",
                     ],
                     preset,
                     192,
@@ -307,7 +309,7 @@ impl Settings {
             }
             6 => {
                 self.section(parent, "连接选项", 162);
-                self.card(36, 192, 728, 186);
+                self.card(36, 192, 728, 248);
                 self.combo(
                     parent,
                     310,
@@ -323,6 +325,7 @@ impl Settings {
                         "Anthropic Messages",
                         "Google Gemini",
                         "Ollama",
+                        "llama.cpp",
                     ],
                     provider_index(c.provider),
                     192,
@@ -343,7 +346,15 @@ impl Settings {
                     316,
                     0,
                 );
-                self.label(parent,"通常保留默认值即可。专用决策模型不使用输出长度设置。\r\n本地服务需要先在此设备上运行。",58,396,680,64);
+                self.combo(
+                    parent,
+                    333,
+                    "Ollama · 模型驻留",
+                    &["遵循服务设置", "用后释放模型"],
+                    usize::from(c.ollama_unload_after_request),
+                    378,
+                );
+                self.label(parent,"通常保留默认值即可。专用决策模型不使用输出长度设置。\r\n模型驻留仅对 Ollama 生效，由服务决定保留多久。\r\n用后释放可减少模型驻留资源，但下次可能需要重新加载。",58,458,680,90);
             }
             7 => {
                 self.section(parent, "颜色与排版", 162);
@@ -462,6 +473,10 @@ impl Settings {
             let _ = EnableWindow(
                 self.hwnd(317),
                 !index_provider(self.selection(310)).is_decision(),
+            );
+            let _ = EnableWindow(
+                self.hwnd(333),
+                index_provider(self.selection(310)) == Provider::Ollama,
             );
         }
         if self.page == 7 {
