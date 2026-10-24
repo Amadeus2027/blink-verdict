@@ -36,6 +36,9 @@ pub fn foreground_rect() -> RECT {
 
 /// Encode directly from a borrowed DIB. Release capture handles before OCR recognition/network.
 pub fn observe(rect: RECT, vision: bool) -> Result<Observation, String> {
+    unsafe {
+        super::display::require_sdr(rect)?;
+    }
     let frame = unsafe { Frame::capture(rect)? };
     if frame
         .pixels()
@@ -56,9 +59,13 @@ pub fn observe(rect: RECT, vision: bool) -> Result<Observation, String> {
     let bitmap = ocr_bitmap(frame.width, frame.height, frame.pixels())
         .map_err(|_| "本机 OCR 图像准备失败".to_string())?;
     drop(frame);
-    ocr(&bitmap)
-        .map(Observation::Text)
-        .map_err(|_| "本机 OCR 不可用，请安装 Windows OCR 语言包或改用视觉模型".into())
+    ocr(&bitmap).map(Observation::Text).map_err(|e| {
+        if e.code() == windows::core::HRESULT::from_win32(ERROR_TIMEOUT.0) {
+            "本机 OCR 超时，可以重试或改用视觉模型".into()
+        } else {
+            "本机 OCR 不可用，请安装 Windows OCR 语言包或改用视觉模型".into()
+        }
+    })
 }
 
 struct Frame {
@@ -182,6 +189,9 @@ fn ocr_bitmap(width: u32, height: u32, pixels: &[u8]) -> WinResult<SoftwareBitma
 
 fn ocr(bitmap: &SoftwareBitmap) -> WinResult<String> {
     let engine = OcrEngine::TryCreateFromUserProfileLanguages()?;
-    let result = engine.RecognizeAsync(bitmap)?.get()?;
+    let result = super::gamebar::wait(
+        engine.RecognizeAsync(bitmap)?,
+        std::time::Duration::from_secs(10),
+    )?;
     Ok(result.Text()?.to_string())
 }

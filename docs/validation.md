@@ -2,6 +2,19 @@
 
 Updated: 2026-10-23. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
 
+## Runtime recovery and monitor-DPI follow-up
+
+Implementation: `e7be770`; strengthened regressions: `b7ec902` ([PR #10](https://github.com/Amadeus2027/blink-verdict/pull/10)). The task process is isolated by a kill-on-close Job Object, private stdin/stdout pipes and an active-request-only host timer. OCR waits are bounded. Game Bar already had three-second waits; its UI cleanup no longer joins a thread. Fullscreen rendering is cropped to measured result bounds; widget sizing/fonts/hit zones and settings rebuilds follow monitor DPI. Enabled HDR/advanced color is rejected before GDI capture, not tone mapped. New request timeouts default to 45 seconds, preserving configured values.
+
+Linux: four unchanged core groups and Windows-GNU all-target Clippy passed. [First targeted Windows run](https://github.com/Amadeus2027/blink-verdict/actions/runs/40049664799) passed five core groups plus four ignored settings/runtime groups. [Strengthened Windows run](https://github.com/Amadeus2027/blink-verdict/actions/runs/40049915008), `windows-2022`, also passed:
+
+- Actual nonfinishing Windows child reclaimed after deadline; host timer clears busy/worker; unexpected exit recovers; a new real BlinkVerdict preview child succeeds afterward. No completion message is posted. A real shortcut conflict is rejected and an inactive shortcut cannot trigger a task.
+- One real SDR GDI capture, PNG encoding, key transfer through private pipes and WinHTTP request to a llama.cpp-shaped loopback fixture returns NO. It uses a synthetic key, no weights or real account. This validates the SDR query path on this runner, not HDR hardware or model quality.
+- Short English, wrapped and Chinese results against a 3840×2160 viewport allocate below half the full-screen DIB area and stay centered. Native DIB alpha, layered-window hit testing and locked click-through pass at configured background 0/180/255. Settings handle a synthetic 192-DPI message without losing an unfinished model field or changing the foreground window; the rebuilt panel fits the actual work area.
+- Existing About/Game Bar, Ollama/native preset and real Credential Manager rollback groups remain green.
+
+These are focused regressions, not a full release pass. Actual mixed-DPI physical monitors, consumer Windows 10/11, HDR hardware, physical 4K CPU/peak-memory measurements, games and endurance remain unverified. The new temporary task process has not been resource-benchmarked together with its parent; historical RC1 host measurements do not establish new peak usage. The old release remains held. See [runtime boundaries](runtime-safety.md).
+
 ## Settings persistence and llama.cpp follow-up
 
 Source: `fcc8014` ([PR #9](https://github.com/Amadeus2027/blink-verdict/pull/9)). Fixed About-page Game Bar retention and rollback of edited credentials if config persistence fails. Added a dedicated llama-server preset with native JSON Schema choice constraints, kept all existing adapters, and changed Ollama to service-controlled residency with optional unloading. No runtime dependency or idle polling was added.

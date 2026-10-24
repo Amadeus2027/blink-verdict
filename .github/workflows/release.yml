@@ -36,11 +36,12 @@ jobs:
         run: |
           cargo test --locked --lib
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo test --locked --bin blink-verdict settings_regression -- --ignored --test-threads=1
+          cargo build --locked --release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $env:BLINK_VERDICT_TEST_EXE = (Resolve-Path target/release/blink-verdict.exe).Path
+          cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --locked --test release_providers -- --ignored
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo build --locked --release
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/setup-python@v5
         with:

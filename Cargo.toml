@@ -16,7 +16,7 @@ serde_json = "1"
 windows = { version = "0.58", features = [
   "Foundation", "Foundation_Collections", "ApplicationModel_AppService", "Globalization", "Graphics_Imaging", "Media_Ocr", "Storage_Streams",
   "Win32_Networking_WinHttp", "Win32_Graphics_Imaging", "Win32_System_Com_StructuredStorage",
-  "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Direct2D",
+  "Win32_Devices_Display", "Win32_System_JobObjects", "Win32_Foundation", "Win32_Globalization", "Win32_Graphics_Direct2D",
   "Win32_Graphics_Direct2D_Common", "Win32_Graphics_DirectWrite", "Win32_Graphics_Dwm",
   "Win32_Graphics_Dxgi_Common", "Foundation_Numerics", "Win32_Graphics_Gdi", "Win32_Security",
   "Win32_Security_Credentials", "Win32_System_Com", "Win32_System_LibraryLoader",

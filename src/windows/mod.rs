@@ -1,11 +1,13 @@
 mod art;
 mod capture;
 mod credentials;
+mod display;
 mod gamebar;
 mod hotkey;
 mod render;
 mod settings;
 mod settings_style;
+mod worker;
 
 use blink_verdict::{
     config::{Config, DisplayMode},
@@ -14,7 +16,6 @@ use blink_verdict::{
 };
 use std::{
     path::PathBuf,
-    sync::mpsc,
     time::{Duration, Instant},
 };
 use windows::{
@@ -28,9 +29,9 @@ use windows::{
 };
 
 const TRAY_EVENT: u32 = WM_APP + 1;
-const RESULT_EVENT: u32 = WM_APP + 2;
 const HOTKEY_ID: i32 = 1;
 const TIMER_ID: usize = 1;
+const WORKER_TIMER_ID: usize = 2;
 const CMD_SETTINGS: usize = 100;
 const CMD_FULLSCREEN: usize = 101;
 const CMD_WIDGET: usize = 102;
@@ -45,6 +46,7 @@ fn wide(text: &str) -> Vec<u16> {
     text.encode_utf16().chain(Some(0)).collect()
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 enum WorkerEvent {
     Captured,
     Finished(Result<(String, bool, String), String>),
@@ -68,9 +70,11 @@ pub(super) struct App {
     shown_at: Instant,
     expires_at: Option<Instant>,
     result_display: bool,
-    receiver: Option<mpsc::Receiver<WorkerEvent>>,
+    worker: Option<worker::Worker>,
     capture_rect: RECT,
+    display_rect: RECT,
     hotkey_active: bool,
+    settings_monitor: HMONITOR,
     settings_ui: Option<settings::Settings>,
     taskbar_created: u32,
 }
@@ -78,6 +82,9 @@ pub(super) struct App {
 pub fn run() {
     unsafe {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        if worker::run_if_requested() {
+            return;
+        }
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let mutex = match CreateMutexW(None, false, w!("Local\\BlinkVerdict.Instance")) {
             Ok(handle) => handle,
@@ -148,10 +155,12 @@ pub fn run() {
             shown_at: Instant::now(),
             expires_at: None,
             result_display: false,
-            receiver: None,
+            worker: None,
             settings_ui: None,
             capture_rect: RECT::default(),
+            display_rect: RECT::default(),
             hotkey_active: false,
+            settings_monitor: display::interaction_monitor(),
             taskbar_created: RegisterWindowMessageW(w!("TaskbarCreated")),
         });
         SetWindowLongPtrW(host, GWLP_USERDATA, (&mut *app as *mut App) as isize);
@@ -192,7 +201,11 @@ pub fn run() {
             Err(error) => app.status = error,
         }
         app.tray(NIM_ADD);
-        if first_run {
+        if !app.hotkey_active {
+            let message = app.status.clone();
+            settings::open(&mut app);
+            settings::error(app.settings, &message);
+        } else if first_run {
             settings::open(&mut app);
         } else {
             app.restore_widget();
@@ -209,6 +222,8 @@ pub fn run() {
             let _ = TranslateMessage(&message);
             DispatchMessageW(&message);
         }
+        app.worker = None;
+        let _ = KillTimer(app.host, WORKER_TIMER_ID);
         app.hide();
         app.tray(NIM_DELETE);
         let _ = UnregisterHotKey(host, HOTKEY_ID);
@@ -248,6 +263,31 @@ impl App {
     unsafe fn set_status(&mut self, text: String) {
         self.status = text;
         self.tray(NIM_MODIFY);
+    }
+
+    unsafe fn notify_error(&mut self, message: String) {
+        self.set_status(message.clone());
+        let mut data = NOTIFYICONDATAW {
+            cbSize: std::mem::size_of::<NOTIFYICONDATAW>() as u32,
+            hWnd: self.host,
+            uID: 1,
+            uFlags: NIF_INFO | NIF_REALTIME,
+            dwInfoFlags: NIIF_WARNING | NIIF_NOSOUND,
+            ..Default::default()
+        };
+        for (field, value) in [
+            (&mut data.szInfo[..], message.as_str()),
+            (&mut data.szInfoTitle[..], "BlinkVerdict"),
+        ] {
+            let text = wide(value);
+            let count = field
+                .len()
+                .saturating_sub(1)
+                .min(text.len().saturating_sub(1));
+            field[..count].copy_from_slice(&text[..count]);
+        }
+        // A native notification never activates an overlay or takes keyboard focus.
+        let _ = Shell_NotifyIconW(NIM_MODIFY, &data);
     }
 
     unsafe fn menu(&mut self) {
@@ -427,7 +467,16 @@ impl App {
                             self.set_status("已恢复，按下快捷键即可开始".into());
                             self.restore_widget();
                         }
-                        Err(error) => self.set_status(error),
+                        Err(error) => {
+                            self.set_status(error.clone());
+                            let text = wide(&error);
+                            MessageBoxW(
+                                self.host,
+                                PCWSTR(text.as_ptr()),
+                                w!("BlinkVerdict · 快捷键未启用"),
+                                MB_OK | MB_ICONWARNING,
+                            );
+                        }
                     }
                 } else {
                     let _ = UnregisterHotKey(self.host, HOTKEY_ID);
@@ -486,16 +535,22 @@ impl App {
             return;
         }
         let config = self.config.clone();
-        let _ = std::thread::spawn(move || {
-            let initialized = RoInitialize(RO_INIT_MULTITHREADED).is_ok();
-            if let Ok(bridge) = gamebar::Bridge::connect(&config.gamebar_package_family) {
-                let _ = bridge.send(&config, "hide", "", RECT::default());
-            }
-            if initialized {
-                RoUninitialize();
-            }
-        })
-        .join();
+        // Explicit UI actions never join an IPC thread. Each helper has the same
+        // process deadline/kill-on-close ownership as a decision.
+        let _ = std::thread::Builder::new()
+            .name("gamebar-hide".into())
+            .spawn(move || {
+                if let Ok(mut task) =
+                    worker::Worker::start(config, String::new(), None, RECT::default(), true)
+                {
+                    loop {
+                        if matches!(task.poll(), Some(WorkerEvent::Finished(_))) {
+                            break;
+                        }
+                        std::thread::sleep(Duration::from_millis(50));
+                    }
+                }
+            });
     }
 
     unsafe fn hide(&mut self) {
@@ -540,6 +595,7 @@ impl App {
     ) {
         self.hide();
         self.presentation = presentation;
+        self.display_rect = rect;
         let config = self.display_config().clone();
         self.text = text;
         self.result_display = is_result;
@@ -564,8 +620,11 @@ impl App {
             );
             let _ = GetMonitorInfoW(monitor, &mut area);
             let work = area.rcWork;
-            let width = config.widget_width.min((work.right - work.left).max(160));
-            let height = config.widget_height.min((work.bottom - work.top).max(80));
+            let dpi = display::dpi(monitor);
+            let width =
+                display::pixels(config.widget_width, dpi).min((work.right - work.left).max(1));
+            let height =
+                display::pixels(config.widget_height, dpi).min((work.bottom - work.top).max(1));
             let x = config
                 .widget_x
                 .clamp(work.left, (work.right - width).max(work.left));
@@ -584,7 +643,7 @@ impl App {
             SWP_NOACTIVATE,
         );
         // Decode and create the surface before starting the configured result lifetime.
-        match render::Renderer::new(self.overlay, &config, &self.text) {
+        match render::Renderer::new(self.overlay, &config, &self.text, self.display_rect) {
             Ok(renderer) => self.renderer = Some(renderer),
             Err(_) => {
                 self.hide();
@@ -642,7 +701,12 @@ impl App {
             return;
         }
         if self.renderer.is_none() {
-            match render::Renderer::new(self.overlay, self.display_config(), &self.text) {
+            match render::Renderer::new(
+                self.overlay,
+                self.display_config(),
+                &self.text,
+                self.display_rect,
+            ) {
                 Ok(renderer) => self.renderer = Some(renderer),
                 Err(_) => {
                     self.hide();
@@ -672,6 +736,7 @@ impl App {
     unsafe fn trigger(&mut self) {
         if self.recording_preview
             || self.paused
+            || !self.hotkey_active
             || self.busy
             || self.editing
             || !self.settings.is_invalid()
@@ -699,90 +764,34 @@ impl App {
         self.busy = true;
         self.capture_rect = rect;
         self.set_status("正在思考…".into());
-        let (sender, receiver) = mpsc::channel();
-        self.receiver = Some(receiver);
-        let host = self.host.0 as isize;
-        // Processing UI is shown only after capture finishes; affinity is an extra safeguard.
-        std::thread::spawn(move || {
-            let initialized = RoInitialize(RO_INIT_MULTITHREADED).is_ok();
-            let result = (|| {
-                let bridge = if config.gamebar_package_family.is_empty() {
-                    None
-                } else {
-                    Some(gamebar::Bridge::connect(&config.gamebar_package_family)?)
-                };
-                if let Some(bridge) = &bridge {
-                    bridge.send(&config, "hide", "", rect)?;
-                }
-                if let Some(text) = preview {
-                    if let Some(bridge) = &bridge {
-                        bridge.send(&config, "show", &text, rect)?;
-                    }
-                    return Ok((text, bridge.is_some(), "样式预览（未调用模型）".into()));
-                }
-                let observation = capture::observe(rect, config.vision)?;
-                if config.mode == DisplayMode::Widget {
-                    if let Some(bridge) = &bridge {
-                        bridge.send(&config, "processing", "正在思考…", rect)?;
-                    } else {
-                        let _ = sender.send(WorkerEvent::Captured);
-                        let _ =
-                            PostMessageW(HWND(host as *mut _), RESULT_EVENT, WPARAM(0), LPARAM(0));
-                    }
-                }
-                let verdict = match provider::decide(&config, &key, observation) {
-                    Ok(verdict) => verdict,
-                    Err(error) => {
-                        if let Some(bridge) = &bridge {
-                            let _ = bridge.send(&config, "hide", "", rect);
-                        }
-                        return Err(error);
-                    }
-                };
-                let mut details = String::new();
-                if let Some(confidence) = verdict.confidence {
-                    details.push_str(&format!(
-                        "\n模型置信度：{:.1}%（由服务提供，并非正确率保证）",
-                        confidence * 100.0
-                    ));
-                }
-                for (i, p) in verdict.probabilities.iter().enumerate() {
-                    if let Some(p) = p {
-                        let label = config
-                            .options
-                            .get(i)
-                            .map(String::as_str)
-                            .unwrap_or("无法判断");
-                        details.push_str(&format!("\n{label}：{:.1}%", p * 100.0));
-                    }
-                }
-                let text = match verdict.verdict {
-                    Verdict::Choice(index) => config.options[index].clone(),
-                    Verdict::Uncertain => "无法判断".into(),
-                };
-                if let Some(bridge) = &bridge {
-                    bridge.send(&config, "show", &text, rect)?;
-                }
-                Ok((text, bridge.is_some(), details))
-            })();
-            if initialized {
-                RoUninitialize();
+        match worker::Worker::start(config, key, preview, rect, false) {
+            Ok(worker) => self.worker = Some(worker),
+            Err(error) => {
+                self.busy = false;
+                self.set_status(error);
+                self.restore_widget();
+                return;
             }
-            if sender.send(WorkerEvent::Finished(result)).is_ok() {
-                let _ = PostMessageW(HWND(host as *mut _), RESULT_EVENT, WPARAM(0), LPARAM(0));
-            }
-        });
+        }
+        // Poll only during a request. Completion never depends on PostMessage delivery.
+        if SetTimer(self.host, WORKER_TIMER_ID, 50, None) == 0 {
+            self.worker = None;
+            self.busy = false;
+            self.set_status("无法启动任务计时器，请重试".into());
+            self.restore_widget();
+        }
     }
 
     unsafe fn finish(&mut self) {
-        while let Some(event) = self.receiver.as_ref().and_then(|r| r.try_recv().ok()) {
+        while let Some(event) = self.worker.as_mut().and_then(|w| w.poll()) {
             match event {
                 WorkerEvent::Captured => {
                     self.show("正在思考…".into(), self.capture_rect, None, false, None)
                 }
                 WorkerEvent::Finished(result) => {
                     self.busy = false;
-                    self.receiver = None;
+                    self.worker = None;
+                    let _ = KillTimer(self.host, WORKER_TIMER_ID);
                     match result {
                         Ok((text, gamebar, details)) => {
                             self.set_status(format!("最近决策：{text}{details}"));
@@ -792,7 +801,7 @@ impl App {
                         }
                         Err(error) => {
                             self.hide();
-                            self.set_status(error);
+                            self.notify_error(error);
                             self.restore_widget();
                         }
                     }
@@ -822,11 +831,12 @@ unsafe extern "system" fn host_proc(
             app.trigger();
             LRESULT(0)
         }
-        RESULT_EVENT => {
+        WM_TIMER if wparam.0 == WORKER_TIMER_ID => {
             app.finish();
             LRESULT(0)
         }
         TRAY_EVENT => {
+            app.settings_monitor = display::interaction_monitor();
             match lparam.0 as u32 {
                 WM_RBUTTONUP | WM_CONTEXTMENU => app.menu(),
                 WM_LBUTTONUP | WM_LBUTTONDBLCLK => settings::open(app),
@@ -879,10 +889,11 @@ unsafe extern "system" fn overlay_proc(
             let _ = GetWindowRect(hwnd, &mut rect);
             let x = lparam.0 as u16 as i16 as i32;
             let y = ((lparam.0 >> 16) as u16) as i16 as i32;
-            let left = x < rect.left + 10;
-            let right = x >= rect.right - 10;
-            let top = y < rect.top + 10;
-            let bottom = y >= rect.bottom - 10;
+            let edge = display::pixels(10, GetDpiForWindow(hwnd));
+            let left = x < rect.left + edge;
+            let right = x >= rect.right - edge;
+            let top = y < rect.top + edge;
+            let bottom = y >= rect.bottom - edge;
             LRESULT(match (left, right, top, bottom) {
                 (true, _, true, _) => HTTOPLEFT,
                 (_, true, true, _) => HTTOPRIGHT,
@@ -897,8 +908,15 @@ unsafe extern "system" fn overlay_proc(
         }
         WM_GETMINMAXINFO => {
             let info = &mut *(lparam.0 as *mut MINMAXINFO);
-            info.ptMinTrackSize = POINT { x: 160, y: 80 };
-            info.ptMaxTrackSize = POINT { x: 1600, y: 1000 };
+            let dpi = GetDpiForWindow(hwnd);
+            info.ptMinTrackSize = POINT {
+                x: display::pixels(160, dpi),
+                y: display::pixels(80, dpi),
+            };
+            info.ptMaxTrackSize = POINT {
+                x: display::pixels(1600, dpi),
+                y: display::pixels(1000, dpi),
+            };
             LRESULT(0)
         }
         WM_EXITSIZEMOVE if app.editing => {
@@ -906,8 +924,10 @@ unsafe extern "system" fn overlay_proc(
             let _ = GetWindowRect(hwnd, &mut rect);
             app.config.widget_x = rect.left;
             app.config.widget_y = rect.top;
-            app.config.widget_width = rect.right - rect.left;
-            app.config.widget_height = rect.bottom - rect.top;
+            app.config.widget_width =
+                display::logical(rect.right - rect.left, GetDpiForWindow(hwnd)).clamp(160, 1600);
+            app.config.widget_height =
+                display::logical(rect.bottom - rect.top, GetDpiForWindow(hwnd)).clamp(80, 1000);
             if let Err(error) = app.config.save(&app.config_path) {
                 app.set_status(error);
             }
@@ -947,8 +967,123 @@ unsafe extern "system" fn overlay_proc(
         }
         WM_DPICHANGED => {
             app.renderer = None;
+            if app.visible {
+                let rect = *(lparam.0 as *const RECT);
+                let rect = if app.display_config().mode == DisplayMode::Fullscreen {
+                    display::monitor_info(MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST))
+                        .rcMonitor
+                } else {
+                    rect
+                };
+                app.display_rect = rect;
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    rect.left,
+                    rect.top,
+                    rect.right - rect.left,
+                    rect.bottom - rect.top,
+                    SWP_NOACTIVATE | SWP_NOZORDER,
+                );
+                let _ = InvalidateRect(hwnd, None, false);
+            }
             LRESULT(0)
         }
         _ => DefWindowProcW(hwnd, message, wparam, lparam),
+    }
+}
+
+#[cfg(test)]
+struct TestApp(Box<App>);
+#[cfg(test)]
+impl TestApp {
+    unsafe fn new() -> Self {
+        let classes: [(PCWSTR, WNDPROC); 3] = [
+            (w!("BlinkVerdict.Regression.Host"), Some(host_proc)),
+            (w!("BlinkVerdict.Regression.Overlay"), Some(overlay_proc)),
+            (w!("BlinkVerdict.Settings"), Some(settings::window_proc)),
+        ];
+        for (name, proc) in classes {
+            RegisterClassW(&WNDCLASSW {
+                lpszClassName: name,
+                lpfnWndProc: proc,
+                hInstance: GetModuleHandleW(None).unwrap().into(),
+                ..Default::default()
+            });
+        }
+        let create = |name, style| {
+            CreateWindowExW(
+                style,
+                name,
+                w!("BlinkVerdict regression"),
+                WS_POPUP,
+                0,
+                0,
+                320,
+                140,
+                None,
+                None,
+                GetModuleHandleW(None).unwrap(),
+                None,
+            )
+            .unwrap()
+        };
+        let host = create(w!("BlinkVerdict.Regression.Host"), WINDOW_EX_STYLE(0));
+        let overlay = create(
+            w!("BlinkVerdict.Regression.Overlay"),
+            WS_EX_LAYERED | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT,
+        );
+        let mut app = Box::new(App {
+            host,
+            overlay,
+            settings: HWND::default(),
+            config: Config::default(),
+            presentation: None,
+            paused: false,
+            recording_preview: false,
+            config_path: std::env::temp_dir().join(format!(
+                "blink-runtime-regression-{}-{:?}.json",
+                std::process::id(),
+                std::thread::current().id()
+            )),
+            status: String::new(),
+            busy: false,
+            editing: false,
+            visible: false,
+            text: String::new(),
+            renderer: None,
+            shown_at: Instant::now(),
+            expires_at: None,
+            result_display: false,
+            worker: None,
+            capture_rect: display::monitor_info(MonitorFromWindow(host, MONITOR_DEFAULTTOPRIMARY))
+                .rcMonitor,
+            display_rect: RECT::default(),
+            hotkey_active: false,
+            settings_monitor: display::interaction_monitor(),
+            settings_ui: None,
+            taskbar_created: 0,
+        });
+        let pointer = (&mut *app as *mut App) as isize;
+        SetWindowLongPtrW(host, GWLP_USERDATA, pointer);
+        SetWindowLongPtrW(overlay, GWLP_USERDATA, pointer);
+        Self(app)
+    }
+}
+#[cfg(test)]
+impl Drop for TestApp {
+    fn drop(&mut self) {
+        unsafe {
+            self.0.worker = None;
+            self.0.hide();
+            let _ = KillTimer(self.0.host, WORKER_TIMER_ID);
+            let _ = UnregisterHotKey(self.0.host, HOTKEY_ID);
+            if !self.0.settings.is_invalid() {
+                let _ = DestroyWindow(self.0.settings);
+            }
+            let _ = DestroyWindow(self.0.overlay);
+            let _ = DestroyWindow(self.0.host);
+            let _ = std::fs::remove_file(&self.0.config_path);
+        }
     }
 }

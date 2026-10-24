@@ -268,13 +268,13 @@ impl Settings {
                     680,
                     28,
                 );
-                self.section(parent, "精确调整 · 像素", 336);
+                self.section(parent, "精确调整", 336);
                 self.card(36, 366, 728, 248);
                 for (id, label, value, y) in [
-                    (350, "水平位置", c.widget_x, 366),
-                    (351, "垂直位置", c.widget_y, 428),
-                    (352, "宽度", c.widget_width, 490),
-                    (353, "高度", c.widget_height, 552),
+                    (350, "水平位置 · 像素", c.widget_x, 366),
+                    (351, "垂直位置 · 像素", c.widget_y, 428),
+                    (352, "宽度 · 逻辑像素", c.widget_width, 490),
+                    (353, "高度 · 逻辑像素", c.widget_height, 552),
                 ] {
                     self.edit(parent, id, label, &value.to_string(), y, 0);
                 }

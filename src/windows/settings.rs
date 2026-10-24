@@ -59,17 +59,10 @@ pub(super) unsafe fn open(app: &mut App) {
     app.clear_gamebar();
     app.lock_widget();
     app.hide();
-    let dpi = GetDpiForSystem() as f32 / 96.0;
-    let mut work = RECT::default();
-    let _ = SystemParametersInfoW(
-        SPI_GETWORKAREA,
-        0,
-        Some((&mut work as *mut RECT).cast()),
-        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
-    );
-    let scale = dpi
-        .min((work.bottom - work.top - 44).max(480) as f32 / 860.0)
-        .min((work.right - work.left - 40).max(520) as f32 / 800.0);
+    let work = display::monitor_info(app.settings_monitor).rcWork;
+    let scale = interface_scale(display::dpi(app.settings_monitor), work);
+    let width = (800.0 * scale).round() as i32;
+    let height = (860.0 * scale).round() as i32;
     let onboarding = !app.config_path.exists();
     // Result fonts stay independent of the interface. Capture-only fonts are never shipped.
     let face = if app.recording_preview {
@@ -100,10 +93,10 @@ pub(super) unsafe fn open(app: &mut App) {
         w!("BlinkVerdict.Settings"),
         w!("BlinkVerdict"),
         WS_POPUP | WS_THICKFRAME | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT,
-        CW_USEDEFAULT,
-        (800.0 * scale) as i32,
-        (860.0 * scale) as i32,
+        work.left + (work.right - work.left - width) / 2,
+        work.top + (work.bottom - work.top - height) / 2,
+        width,
+        height,
         None,
         None,
         GetModuleHandleW(None).unwrap_or_default(),
@@ -128,6 +121,13 @@ pub(super) unsafe fn open(app: &mut App) {
     app.settings_ui.as_mut().unwrap().build(hwnd);
     let _ = ShowWindow(hwnd, SW_SHOW);
     let _ = SetForegroundWindow(hwnd);
+}
+
+fn interface_scale(dpi: u32, work: RECT) -> f32 {
+    (dpi as f32 / 96.0)
+        .min((work.bottom - work.top - 44).max(1) as f32 / 860.0)
+        .min((work.right - work.left - 40).max(1) as f32 / 800.0)
+        .max(0.1)
 }
 
 impl Settings {
@@ -509,7 +509,7 @@ fn index_provider(index: usize) -> Provider {
     PROVIDERS.get(index).copied().unwrap_or(Provider::Jev)
 }
 
-unsafe fn error(parent: HWND, message: &str) {
+pub(super) unsafe fn error(parent: HWND, message: &str) {
     let text = wide(message);
     MessageBoxW(
         parent,
@@ -634,6 +634,45 @@ pub(super) unsafe extern "system" fn window_proc(
     }
     let app = &mut *pointer;
     match message {
+        WM_DPICHANGED => {
+            let suggested = *(lparam.0 as *const RECT);
+            let monitor = MonitorFromRect(&suggested, MONITOR_DEFAULTTONEAREST);
+            let work = display::monitor_info(monitor).rcWork;
+            let scale = interface_scale((wparam.0 & 0xffff) as u32, work);
+            let ui = app.settings_ui.as_mut().unwrap();
+            ui.cache();
+            // Destroy controls before releasing the fonts they still reference.
+            for (_, control) in ui.controls.drain(..) {
+                let _ = DestroyWindow(control);
+            }
+            ui.scale = scale;
+            let face = if app.recording_preview {
+                app.config.theme.font.as_str()
+            } else {
+                "Microsoft YaHei UI"
+            };
+            ui.style = Style::new(scale, face);
+            ui.style.attach(hwnd);
+            let width = (800.0 * scale).round() as i32;
+            let height = (860.0 * scale).round() as i32;
+            let x = suggested
+                .left
+                .clamp(work.left, (work.right - width).max(work.left));
+            let y = suggested
+                .top
+                .clamp(work.top, (work.bottom - height).max(work.top));
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                x,
+                y,
+                width,
+                height,
+                SWP_NOACTIVATE | SWP_NOZORDER,
+            );
+            ui.build(hwnd);
+            LRESULT(0)
+        }
         WM_NCCALCSIZE => LRESULT(0),
         WM_NCHITTEST => {
             let mut point = POINT {
