@@ -1,7 +1,13 @@
-param([int]$Seconds = 60)
+param([int]$Seconds = 60, [int]$ProcessId = 0)
 $ErrorActionPreference = 'Stop'
 if ($Seconds -lt 10) { throw 'Use at least 10 seconds; release records require 60.' }
-$app = Get-Process -Name 'blink-verdict' | Select-Object -First 1
+if ($ProcessId -gt 0) {
+ $app = Get-Process -Id $ProcessId
+} else {
+ $matches = @(Get-Process -Name 'blink-verdict')
+ if ($matches.Count -ne 1) {throw 'Multiple app/worker processes; pass the resident host ProcessId explicitly.'}
+ $app = $matches[0]
+}
 if (-not $app) { throw 'Start blink-verdict.exe and hide the overlay first.' }
 # Perflib counter names are localized; Win32_PerfFormattedData works on localized Windows.
 $startCpu = $app.TotalProcessorTime.TotalSeconds

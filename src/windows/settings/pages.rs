@@ -296,7 +296,10 @@ impl Settings {
                 );
                 self.label(
                     parent,
-                    "为眼前的选择，留一点思考空间。\r\n版本 0.1.0 · 预览版",
+                    &format!(
+                        "为眼前的选择，留一点思考空间。\r\n版本 {} · 预览版",
+                        env!("CARGO_PKG_VERSION")
+                    ),
                     60,
                     284,
                     680,

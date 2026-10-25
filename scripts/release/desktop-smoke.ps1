@@ -11,6 +11,22 @@ public static class DesktopCheck {
  public static IntPtr Window,Edit,Button; public static int Clicks;
  delegate IntPtr Proc(IntPtr h,uint m,IntPtr w,IntPtr l);
  static Proc callback=WindowProc;
+ static volatile bool sampling; static Thread sampler;
+ public static long PeakPrivateBytes,PeakWorkingSet; public static int PeakProcesses,SampleCount;
+ public static void StartSample() {
+  sampling=true; sampler=new Thread(()=>{
+   while(sampling) {
+    long privateBytes=0,workingSet=0;int count=0;
+    foreach(var p in System.Diagnostics.Process.GetProcessesByName("blink-verdict")) {
+     using(p) { try {privateBytes+=p.PrivateMemorySize64;workingSet+=p.WorkingSet64;count++;}catch(InvalidOperationException){}catch(System.ComponentModel.Win32Exception){} }
+    }
+    PeakPrivateBytes=Math.Max(PeakPrivateBytes,privateBytes);PeakWorkingSet=Math.Max(PeakWorkingSet,workingSet);
+    PeakProcesses=Math.Max(PeakProcesses,count);SampleCount++;Thread.Sleep(20);
+   }
+  });sampler.IsBackground=true;sampler.Start();
+ }
+ public static void StopSample(){sampling=false;if(sampler!=null && !sampler.Join(2000))throw new Exception("Active sampler did not stop");}
+
  [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)] struct Class {
   public uint style; public Proc proc; public int cls,win; public IntPtr instance,icon,cursor,brush;
   public string menu,name;
@@ -97,9 +113,10 @@ try {
   if ([DesktopCheck]::ProcessId($hostWindow) -ne $app.Id) {throw 'Harness attached to another process.'}
   if ($mode -eq 'Fullscreen') {
    Write-Host 'Sampling fresh hidden host'
-   $samples.fresh=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.fresh=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60 -ProcessId $app.Id
    $samples.fresh|ConvertTo-Json|Set-Content "$Output/fresh.json" -Encoding utf8NoBOM
   }
+  [DesktopCheck]::StartSample()
   for ($i=0;$i -lt 3;$i++) {
    Write-Host "Checking $mode decision $i"
    if (-not [DesktopCheck]::SetForegroundWindow([DesktopCheck]::Window)) {throw 'Cannot foreground the synthetic input receiver.'}
@@ -118,15 +135,16 @@ try {
    [DesktopCheck]::Click();Start-Sleep -Milliseconds 100
    if ([DesktopCheck]::Clicks -ne $clicks+1) {throw 'Mouse input did not pass through the overlay.'}
   }
+  [DesktopCheck]::StopSample()
   if ($mode -eq 'Widget') {
    Write-Host 'Sampling visible widget'
-   $samples.widget=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.widget=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60 -ProcessId $app.Id
    $samples.widget|ConvertTo-Json|Set-Content "$Output/widget.json" -Encoding utf8NoBOM
   }
   if ($mode -eq 'Fullscreen') {
    Wait-Until {-not [DesktopCheck]::IsWindowVisible($overlay)} 'Timed result did not hide.'
    Write-Host 'Sampling hidden host after use'
-   $samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60
+   $samples.after_use=& "$PSScriptRoot/../measure-idle.ps1" -Seconds 60 -ProcessId $app.Id
    $samples.after_use|ConvertTo-Json|Set-Content "$Output/after-use.json" -Encoding utf8NoBOM
   }
   if (-not [DesktopCheck]::PostMessage($hostWindow,0x10,[IntPtr]::Zero,[IntPtr]::Zero)) {throw 'Could not request standard window close.'}
@@ -139,8 +157,9 @@ try {
  foreach ($name in @('fresh','after_use')) {
   if ($samples[$name].MeanPrivateWorkingSetMB -gt 30 -or $samples[$name].CPUPercentOfMachine -ge 0.1) {throw "Hidden host resource target exceeded: $name"}
  }
- @{source_commit=$env:GITHUB_SHA;os=[Environment]::OSVersion.VersionString;recording_mode=$false;provider='loopback OpenAI-compatible synthetic fixture';requests=$requests;checks=@('real shortcut and PNG capture in both modes','busy repeat suppressed','foreground preserved','keyboard input delivered','mouse clicks pass through','clean process exit after WM_CLOSE');samples=$samples;limits='Synthetic desktop only; tray-menu navigation, games, real providers, OCR, multi-monitor and endurance are outside this check.'} | ConvertTo-Json -Depth 8 | Set-Content "$Output/desktop.json" -Encoding utf8NoBOM
+ @{source_commit=$env:GITHUB_SHA;os=[Environment]::OSVersion.VersionString;recording_mode=$false;provider='loopback OpenAI-compatible synthetic fixture';requests=$requests;active_task=@{observed_peak_combined_private_bytes_mib=[math]::Round([DesktopCheck]::PeakPrivateBytes/1MB,2);observed_peak_combined_working_set_mib=[math]::Round([DesktopCheck]::PeakWorkingSet/1MB,2);peak_simultaneous_processes=[DesktopCheck]::PeakProcesses;samples=[DesktopCheck]::SampleCount;nominal_interval_ms=20;limits='Parent + task processes. Private bytes are commit, not private working set; working sets may count shared pages twice. Sampling is an observation, not an absolute peak guarantee.'};checks=@('real shortcut and PNG capture in both modes','busy repeat suppressed','foreground preserved','keyboard input delivered','mouse clicks pass through','clean process exit after WM_CLOSE');samples=$samples;limits='Synthetic desktop only; tray-menu navigation, games, real providers, OCR, multi-monitor and endurance are outside this check.'} | ConvertTo-Json -Depth 8 | Set-Content "$Output/desktop.json" -Encoding utf8NoBOM
 } finally {
+ [DesktopCheck]::StopSample()
  $env:LOCALAPPDATA=$originalData
  if ($app -and -not $app.HasExited) {Stop-Process -Id $app.Id -Force}
  if ($server -and -not $server.HasExited) {Stop-Process -Id $server.Id -Force}

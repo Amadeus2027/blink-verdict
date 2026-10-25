@@ -445,4 +445,52 @@ mod tests {
             assert_eq!(app.text, "NO", "{}", app.status);
         }
     }
+    #[test]
+    #[ignore = "release-only: repeated real child lifecycle without parent handle growth"]
+    fn release_worker_lifecycle() {
+        unsafe {
+            let mut fixture = TestApp::new();
+            let app = &mut fixture.0;
+            let executable =
+                std::env::var_os("BLINK_VERDICT_TEST_EXE").expect("build release executable first");
+            let mut baseline = 0;
+            let started = Instant::now();
+            for index in 0..34 {
+                let mut command = Command::new(&executable);
+                command.arg("--decision-worker");
+                let request = Request {
+                    config: app.config.clone(),
+                    key: String::new(),
+                    preview: Some("YES".into()),
+                    rect: [0, 0, 1920, 1080],
+                    hide: false,
+                    operation: 0,
+                };
+                app.worker =
+                    Some(Worker::spawn(command, Some(request), Duration::from_secs(5)).unwrap());
+                app.busy = true;
+                SetTimer(app.host, WORKER_TIMER_ID, 50, None);
+                drive(app);
+                assert!(app.status.contains("最近决策：YES"), "{}", app.status);
+                app.hide();
+                if index == 1 {
+                    GetProcessHandleCount(GetCurrentProcess(), &mut baseline).unwrap();
+                }
+            }
+            // Pipe-reader teardown runs as soon as the killed child's pipe closes.
+            std::thread::sleep(Duration::from_millis(100));
+            let mut final_count = 0;
+            GetProcessHandleCount(GetCurrentProcess(), &mut final_count).unwrap();
+            println!(
+                "release workers: 32 cycles after warmup, {:.2}s, process handles {} -> {}",
+                started.elapsed().as_secs_f32(),
+                baseline,
+                final_count
+            );
+            assert!(
+                final_count <= baseline + 8,
+                "parent handles grew across repeated child lifetimes"
+            );
+        }
+    }
 }

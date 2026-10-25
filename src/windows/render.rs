@@ -640,4 +640,89 @@ mod tests {
             );
         }
     }
+    #[test]
+    #[ignore = "release-only: repeated renderer/art lifetime and bounded GDI/USER resources"]
+    fn release_surface_lifecycle() {
+        unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok().unwrap();
+            struct Com;
+            impl Drop for Com {
+                fn drop(&mut self) {
+                    unsafe {
+                        CoUninitialize();
+                    }
+                }
+            }
+            let _com = Com;
+            let mut fixture = TestApp::new();
+            let app = &mut fixture.0;
+            let bounds = RECT {
+                left: -3840,
+                top: -200,
+                right: 0,
+                bottom: 1960,
+            };
+            let mut run = |index: usize| {
+                app.config.mode = if index.is_multiple_of(2) {
+                    DisplayMode::Fullscreen
+                } else {
+                    DisplayMode::Widget
+                };
+                app.config.theme.art_style = [
+                    blink_verdict::config::ArtStyle::Plain,
+                    blink_verdict::config::ArtStyle::Ink,
+                    blink_verdict::config::ArtStyle::Cyberpunk,
+                    blink_verdict::config::ArtStyle::Graffiti,
+                ][(index / 2) % 4];
+                let text = if index.is_multiple_of(2) { "YES" } else { "NO" };
+                let renderer = Renderer::new(app.overlay, &app.config, text, bounds).unwrap();
+                for effect in [
+                    blink_verdict::config::Animation::None,
+                    blink_verdict::config::Animation::Fade,
+                    blink_verdict::config::Animation::Flash,
+                    blink_verdict::config::Animation::Pop,
+                    blink_verdict::config::Animation::Slide,
+                ] {
+                    for elapsed in [0.0, 0.1, 1.0] {
+                        renderer
+                            .paint(
+                                &app.config,
+                                text,
+                                false,
+                                blink_verdict::animation::sample(effect, elapsed, Some(0.2)),
+                            )
+                            .unwrap();
+                    }
+                }
+            };
+            for index in 0..16 {
+                run(index);
+            }
+            let process = GetCurrentProcess();
+            let baseline_gdi = GetGuiResources(process, GR_GDIOBJECTS);
+            let baseline_user = GetGuiResources(process, GR_USEROBJECTS);
+            let started = Instant::now();
+            for index in 0..128 {
+                run(index);
+            }
+            let final_gdi = GetGuiResources(process, GR_GDIOBJECTS);
+            let final_user = GetGuiResources(process, GR_USEROBJECTS);
+            println!(
+                "release surfaces: 128 cycles, 1920 frames, {:.2}s; GDI {} -> {}, USER {} -> {}",
+                started.elapsed().as_secs_f32(),
+                baseline_gdi,
+                final_gdi,
+                baseline_user,
+                final_user
+            );
+            assert!(
+                final_gdi <= baseline_gdi + 4,
+                "GDI handles grew over repeated render/art cycles"
+            );
+            assert!(
+                final_user <= baseline_user + 2,
+                "USER handles grew over repeated render/art cycles"
+            );
+        }
+    }
 }

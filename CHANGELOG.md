@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-rc.2 — Candidate in preparation
 
 - Prevent a delayed Game Bar hide or old connection cleanup from clearing a newer request. Assign monotonic operation IDs before launching helpers, order UI mutations and discard superseded async work. Require matching v2 host/component protocol before sending a display payload.
 
