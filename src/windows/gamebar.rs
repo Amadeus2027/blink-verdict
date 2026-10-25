@@ -71,17 +71,19 @@ impl Bridge {
         use base64::Engine;
         let custom_art = if action == "show" {
             if let Some(path) = config.option_images.get(text) {
-                if std::fs::metadata(path)
+                use std::io::Read;
+                let mut bytes = Vec::new();
+                std::fs::File::open(path)
                     .map_err(|_| "自定义字效文件不可用".to_string())?
-                    .len()
-                    > 32768
-                {
+                    .take(32769)
+                    .read_to_end(&mut bytes)
+                    .map_err(|_| "无法读取自定义字效".to_string())?;
+                if bytes.len() > 32768 {
                     return Err(
                         "Game Bar 自定义 PNG 须不超过 32 KB；可缩小图片或改用原生通道".into(),
                     );
                 }
-                base64::engine::general_purpose::STANDARD
-                    .encode(std::fs::read(path).map_err(|_| "无法读取自定义字效".to_string())?)
+                base64::engine::general_purpose::STANDARD.encode(bytes)
             } else {
                 String::new()
             }
