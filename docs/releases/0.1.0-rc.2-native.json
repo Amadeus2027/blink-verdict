@@ -1,0 +1,48 @@
+{
+  "source_commit": "dc00114a166ebba9e17d416dd55fbdb16f03e93e",
+  "workflow_run": 40161041424,
+  "windows_core_tests": 5,
+  "ignored_native_tests": 7,
+  "release_network_groups": 3,
+  "real_llama_groups": 1,
+  "gamebar_order_script": true,
+  "surfaces": {
+    "cycles": 128,
+    "frames": 1920,
+    "seconds": 3.38,
+    "gdi_including_one_test_brush": [
+      1,
+      1
+    ],
+    "user": [
+      6,
+      6
+    ]
+  },
+  "workers": {
+    "cycles_after_warmup": 32,
+    "seconds": 3.2,
+    "parent_process_handles": [
+      213,
+      213
+    ]
+  },
+  "minimum_widget_long_labels": {
+    "characters": 80,
+    "available_dips": [
+      124,
+      40
+    ],
+    "measured_dips": [
+      [
+        122.27,
+        31.06
+      ],
+      [
+        118.19,
+        38.82
+      ]
+    ]
+  },
+  "notes": "Native test harness resource deltas, not release-executable performance or long-duration certification."
+}

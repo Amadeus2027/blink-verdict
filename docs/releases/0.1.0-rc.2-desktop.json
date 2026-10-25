@@ -1,0 +1,59 @@
+{
+  "provider": "loopback OpenAI-compatible synthetic fixture",
+  "os": "Microsoft Windows NT 10.0.26100.0",
+  "limits": "Synthetic desktop only; tray-menu navigation, games, real providers, OCR, multi-monitor and endurance are outside this check.",
+  "recording_mode": false,
+  "samples": {
+    "fresh": {
+      "PID": 7284,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 79.56,
+      "MeanPrivateWorkingSetMB": 1.38,
+      "PeakPrivateWorkingSetMB": 1.41,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 1.83,
+      "HandleCount": 167
+    },
+    "after_use": {
+      "PID": 7284,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 77.7,
+      "MeanPrivateWorkingSetMB": 2.21,
+      "PeakPrivateWorkingSetMB": 2.76,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 3.15,
+      "HandleCount": 195
+    },
+    "widget": {
+      "PID": 8624,
+      "Windows": "Microsoft Windows NT 10.0.26100.0",
+      "LogicalCPUs": 4,
+      "DurationSeconds": 77.72,
+      "MeanPrivateWorkingSetMB": 5.12,
+      "PeakPrivateWorkingSetMB": 5.15,
+      "CPUPercentOfMachine": 0.0,
+      "PrivateBytesMB": 6.27,
+      "HandleCount": 229
+    }
+  },
+  "requests": 6,
+  "source_commit": "dc00114a166ebba9e17d416dd55fbdb16f03e93e",
+  "checks": [
+    "real shortcut and PNG capture in both modes",
+    "busy repeat suppressed",
+    "foreground preserved",
+    "keyboard input delivered",
+    "mouse clicks pass through",
+    "clean process exit after WM_CLOSE"
+  ],
+  "active_task": {
+    "peak_simultaneous_processes": 2,
+    "limits": "Parent + task processes. Private bytes are commit, not private working set; working sets may count shared pages twice. Sampling is an observation, not an absolute peak guarantee.",
+    "observed_peak_combined_working_set_mib": 39.51,
+    "nominal_interval_ms": 20,
+    "observed_peak_combined_private_bytes_mib": 13.2,
+    "samples": 321
+  }
+}

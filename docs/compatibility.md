@@ -14,4 +14,4 @@ For each tested game record the game/version, Windows build, GPU/driver, display
 
 Do not test protected games using injection or disable anti-cheat to obtain a passing result. Prefer borderless mode if capture or passive presentation is unavailable.
 
-Runner evidence: [0.1.0-rc.1 acceptance](releases/0.1.0-rc.1.md). This uses ordinary host startup for desktop shortcut/input tests and a separate recording-mode capture for native alpha. It does not certify consumer Windows or games.
+Runner evidence: [0.1.0-rc.2 acceptance](releases/0.1.0-rc.2.md). This uses ordinary host startup for desktop shortcut/input tests and a separate recording-mode capture for native alpha. It does not certify consumer Windows or games.

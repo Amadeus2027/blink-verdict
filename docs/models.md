@@ -66,4 +66,4 @@ Ollama 默认不发送 `keep_alive`，遵循服务自身的模型驻留策略；
 - [llama.cpp server](https://github.com/ggml-org/llama.cpp/tree/master/tools/server) · [llama.cpp 多模态](https://github.com/ggml-org/llama.cpp/tree/master/tools/mtmd)
 - [vLLM 本地结构化决策](https://docs.vllm.ai/en/latest/models/structured_decisions_models/)
 
-协议实现依据以上官方文档，并使用合成样例验证请求 / 答案映射。真实服务、账号授权、模型质量与本地权重运行仍需发行前验证；没有使用用户密钥进行在线测试。
+协议实现依据以上官方文档，并使用合成样例验证请求 / 答案映射。RC2 另已用真实 llama-server 和公开测试权重验证文字结构化接口；[验收记录](releases/0.1.0-rc.2.md)列出来源和边界。其他真实服务、账号授权、模型质量及用户权重仍未认证；没有使用用户密钥测试。
