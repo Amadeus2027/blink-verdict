@@ -57,6 +57,7 @@ pub(super) struct App {
     overlay: HWND,
     settings: HWND,
     config: Config,
+    configuration_ready: bool,
     presentation: Option<Config>,
     paused: bool,
     recording_preview: bool,
@@ -102,9 +103,9 @@ pub fn run() {
             .join("config.json");
         let recording_preview = std::env::args_os().any(|arg| arg == "--recordable-preview");
         let first_run = !path.exists();
-        let (config, status) = match Config::load(&path) {
-            Ok(c) => (c, "欢迎使用，先连接模型，再设置你的决策".into()),
-            Err(error) => (Config::default(), error),
+        let (config, status, configuration_ready) = match Config::load(&path) {
+            Ok(c) => (c, "欢迎使用，先连接模型，再设置你的决策".into(), !first_run),
+            Err(error) => (Config::default(), error, false),
         };
         let instance = GetModuleHandleW(None).unwrap_or_default();
         let classes: [(PCWSTR, WNDPROC); 3] = [
@@ -143,6 +144,7 @@ pub fn run() {
             overlay: HWND::default(),
             settings: HWND::default(),
             config,
+            configuration_ready,
             presentation: None,
             paused: false,
             recording_preview,
@@ -207,8 +209,12 @@ pub fn run() {
             let message = app.status.clone();
             settings::open(&mut app);
             settings::error(app.settings, &message);
-        } else if first_run {
+        } else if !app.configuration_ready {
+            let message = app.status.clone();
             settings::open(&mut app);
+            if !first_run {
+                app.notify_error(message);
+            }
         } else {
             app.restore_widget();
         }
@@ -240,6 +246,16 @@ pub fn run() {
 }
 
 impl App {
+    fn persist_preferences(&self) -> Result<(), String> {
+        // A mode/layout change must not create a valid-looking default cloud
+        // configuration after onboarding was cancelled or loading failed.
+        if self.configuration_ready {
+            self.config.save(&self.config_path)
+        } else {
+            Ok(())
+        }
+    }
+
     unsafe fn register_hotkey(&self, text: &str) -> Result<(), String> {
         let (modifiers, key) = hotkey::parse(text)?;
         RegisterHotKey(self.host, HOTKEY_ID, modifiers, key)
@@ -386,7 +402,7 @@ impl App {
                 } else {
                     DisplayMode::Widget
                 };
-                if let Err(error) = self.config.save(&self.config_path) {
+                if let Err(error) = self.persist_preferences() {
                     self.set_status(error);
                 }
                 self.restore_widget();
@@ -433,7 +449,7 @@ impl App {
                         false,
                         Some(editing_config),
                     );
-                    let _ = self.config.save(&self.config_path);
+                    let _ = self.persist_preferences();
                     if !self.settings.is_invalid() {
                         let _ = DestroyWindow(self.settings);
                     }
@@ -595,7 +611,12 @@ impl App {
             && self.settings.is_invalid()
         {
             self.show(
-                "等待你的下一次按键".into(),
+                if self.configuration_ready {
+                    "等待你的下一次按键"
+                } else {
+                    "先连接模型，再开始"
+                }
+                .into(),
                 capture::foreground_rect(),
                 None,
                 false,
@@ -760,6 +781,10 @@ impl App {
             || self.editing
             || !self.settings.is_invalid()
         {
+            return;
+        }
+        if !self.configuration_ready {
+            self.notify_error("请先打开设置，完成模型与决策配置".into());
             return;
         }
         self.start_worker(None);
@@ -952,7 +977,7 @@ unsafe extern "system" fn overlay_proc(
                 display::logical(rect.right - rect.left, GetDpiForWindow(hwnd)).clamp(160, 1600);
             app.config.widget_height =
                 display::logical(rect.bottom - rect.top, GetDpiForWindow(hwnd)).clamp(80, 1000);
-            if let Err(error) = app.config.save(&app.config_path) {
+            if let Err(error) = app.persist_preferences() {
                 app.set_status(error);
             }
             LRESULT(0)
@@ -1062,6 +1087,7 @@ impl TestApp {
             overlay,
             settings: HWND::default(),
             config: Config::default(),
+            configuration_ready: true,
             presentation: None,
             paused: false,
             recording_preview: false,
