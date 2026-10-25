@@ -724,6 +724,18 @@ mod tests {
             for index in 0..16 {
                 run(index);
             }
+            // A valid idle renderer can own zero GDI objects. Hold one known brush
+            // to verify that the counter is available, rather than treating zero as failure.
+            struct Probe(HBRUSH);
+            impl Drop for Probe {
+                fn drop(&mut self) {
+                    unsafe {
+                        let _ = DeleteObject(self.0);
+                    }
+                }
+            }
+            let probe = Probe(CreateSolidBrush(COLORREF(0x123456)));
+            assert!(!probe.0.is_invalid());
             let process = GetCurrentProcess();
             let baseline_gdi = GetGuiResources(process, GR_GDIOBJECTS);
             let baseline_user = GetGuiResources(process, GR_USEROBJECTS);
@@ -738,7 +750,7 @@ mod tests {
             let final_gdi = GetGuiResources(process, GR_GDIOBJECTS);
             let final_user = GetGuiResources(process, GR_USEROBJECTS);
             println!(
-                "release surfaces: 128 cycles, 1920 frames, {:.2}s; GDI {} -> {}, USER {} -> {}",
+                "release surfaces: 128 cycles, 1920 frames, {:.2}s; GDI (including one test brush) {} -> {}, USER {} -> {}",
                 started.elapsed().as_secs_f32(),
                 baseline_gdi,
                 final_gdi,
