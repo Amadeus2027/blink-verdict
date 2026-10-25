@@ -459,10 +459,21 @@ unsafe fn text_layout(
     let mut metrics = DWRITE_TEXT_METRICS::default();
     layout.GetMetrics(&mut metrics)?;
     if metrics.height > height || metrics.width > width {
-        let ratio = (height / metrics.height)
-            .min(width / metrics.width.max(1.0))
-            .min(1.0);
-        layout = make((size * ratio * 0.95).max(8.0))?;
+        // Wrapping changes nonlinearly with size. Search measured layouts rather
+        // than applying one ratio and an 8-DIP floor that can still clip long labels.
+        let (mut low, mut high) = (1.0, size);
+        layout = make(low)?;
+        for _ in 0..8 {
+            let middle = (low + high) / 2.0;
+            let candidate = make(middle)?;
+            candidate.GetMetrics(&mut metrics)?;
+            if metrics.height <= height && metrics.width <= width {
+                low = middle;
+                layout = candidate;
+            } else {
+                high = middle;
+            }
+        }
     }
     Ok(layout)
 }
@@ -656,6 +667,21 @@ mod tests {
             let _com = Com;
             let mut fixture = TestApp::new();
             let app = &mut fixture.0;
+            let write: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED).unwrap();
+            for text in ["长".repeat(80), "W".repeat(80)] {
+                let layout =
+                    text_layout(&write, &text, &app.config.theme.font, 120.0, 124.0, 40.0).unwrap();
+                let mut metrics = DWRITE_TEXT_METRICS::default();
+                layout.GetMetrics(&mut metrics).unwrap();
+                assert!(
+                    metrics.height <= 40.0 && metrics.width <= 124.0,
+                    "long answer clips in minimum widget"
+                );
+                println!(
+                    "minimum-widget 80-character layout: {:.2} x {:.2} DIPs",
+                    metrics.width, metrics.height
+                );
+            }
             let bounds = RECT {
                 left: -3840,
                 top: -200,
@@ -701,6 +727,10 @@ mod tests {
             let process = GetCurrentProcess();
             let baseline_gdi = GetGuiResources(process, GR_GDIOBJECTS);
             let baseline_user = GetGuiResources(process, GR_USEROBJECTS);
+            assert!(
+                baseline_gdi > 0 && baseline_user > 0,
+                "GUI counters unavailable"
+            );
             let started = Instant::now();
             for index in 0..128 {
                 run(index);

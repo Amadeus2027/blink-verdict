@@ -2,6 +2,8 @@
 
 ## 0.1.0-rc.2 — Candidate in preparation
 
+- Fit long custom answers using measured wrapped layouts, including the smallest widget; remove the fixed 8-DIP floor that could leave labels clipped.
+
 - Prevent a delayed Game Bar hide or old connection cleanup from clearing a newer request. Assign monotonic operation IDs before launching helpers, order UI mutations and discard superseded async work. Require matching v2 host/component protocol before sending a display payload.
 
 - Run each capture/OCR/provider/Game Bar task in an on-demand child with private pipe IPC and a kill-on-close Job Object; enforce a host deadline, recover from worker exit, and stop depending on completion messages. Bound OCR waits and keep Game Bar cleanup off the UI thread.

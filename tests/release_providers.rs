@@ -228,4 +228,31 @@ fn timeout_and_unknown_choice_are_failures() {
     };
     assert!(decide(&config, "", Observation::Text("screen".into())).is_err());
     worker.join().unwrap();
+    for body in ["not-json".to_string(), "x".repeat(1_048_577)] {
+        let oversized = body.len() > 1_048_576;
+        let (endpoint, worker) = server(move |stream| {
+            request(stream);
+            reply(stream, "200 OK", &body, "");
+        });
+        let config = Config {
+            endpoint,
+            ..Config::default()
+        };
+        let error = decide(&config, "", Observation::Text("screen".into())).unwrap_err();
+        worker.join().unwrap();
+        if oversized {
+            assert!(error.contains("过大"));
+        }
+    }
+    let config = Config {
+        endpoint: "http://127.0.0.1:1/v1".into(),
+        ..Config::default()
+    };
+    assert!(decide(
+        &config,
+        "key\r\nInjected: bad",
+        Observation::Text("screen".into())
+    )
+    .unwrap_err()
+    .contains("无效字符"));
 }

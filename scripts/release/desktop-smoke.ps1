@@ -154,6 +154,7 @@ try {
   }
   if ($app.ExitCode -ne 0) {throw 'Native host exited unsuccessfully.'}
  }
+ if ([DesktopCheck]::PeakProcesses -lt 2) {throw 'Active sampling never observed the task process.'}
  foreach ($name in @('fresh','after_use')) {
   if ($samples[$name].MeanPrivateWorkingSetMB -gt 30 -or $samples[$name].CPUPercentOfMachine -ge 0.1) {throw "Hidden host resource target exceeded: $name"}
  }
