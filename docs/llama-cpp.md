@@ -51,4 +51,4 @@ BlinkVerdict 连接你已经运行的 **llama-server**。无需额外推理引�
 - **不识别结构化输出参数**：更新 llama.cpp；旧版本或第三方包装服务可尝试保留的“OpenAI 兼容”协议，但不会获得此预设的原生 Schema 约束。
 - **已有 OpenAI 兼容配置**：可以继续使用；切到独立的 llama.cpp 协议后，有认证时需重新填写密钥，原配置对应的凭据不会被搬移或删除。
 
-请求格式依据 [llama.cpp server 官方说明](https://github.com/ggml-org/llama.cpp/tree/master/tools/server)和[多模态说明](https://github.com/ggml-org/llama.cpp/tree/master/tools/mtmd)。当前已验证请求构造、结果映射与 Windows 预设保存；使用你的模型权重进行真实推理仍需实机确认，不把协议样例作为模型质量或速度测试。
+请求格式依据 [llama.cpp server 官方说明](https://github.com/ggml-org/llama.cpp/tree/master/tools/server)和[多模态说明](https://github.com/ggml-org/llama.cpp/tree/master/tools/mtmd)。RC2 已使用真实 `llama-server b11669` 和公开小型测试权重验证文字结构化请求及鉴权，详见[验收记录](releases/0.1.0-rc.2.md)。你的模型、视觉/GPU与响应速度仍需按实际配置确认；测试权重不用于判断质量评价。

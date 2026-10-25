@@ -459,10 +459,21 @@ unsafe fn text_layout(
     let mut metrics = DWRITE_TEXT_METRICS::default();
     layout.GetMetrics(&mut metrics)?;
     if metrics.height > height || metrics.width > width {
-        let ratio = (height / metrics.height)
-            .min(width / metrics.width.max(1.0))
-            .min(1.0);
-        layout = make((size * ratio * 0.95).max(8.0))?;
+        // Wrapping changes nonlinearly with size. Search measured layouts rather
+        // than applying one ratio and an 8-DIP floor that can still clip long labels.
+        let (mut low, mut high) = (1.0, size);
+        layout = make(low)?;
+        for _ in 0..8 {
+            let middle = (low + high) / 2.0;
+            let candidate = make(middle)?;
+            candidate.GetMetrics(&mut metrics)?;
+            if metrics.height <= height && metrics.width <= width {
+                low = middle;
+                layout = candidate;
+            } else {
+                high = middle;
+            }
+        }
     }
     Ok(layout)
 }
@@ -637,6 +648,122 @@ mod tests {
                     && actual.top >= work.top
                     && actual.right <= work.right
                     && actual.bottom <= work.bottom
+            );
+        }
+    }
+    #[test]
+    #[ignore = "release-only: repeated renderer/art lifetime and bounded GDI/USER resources"]
+    fn release_surface_lifecycle() {
+        unsafe {
+            CoInitializeEx(None, COINIT_APARTMENTTHREADED).ok().unwrap();
+            struct Com;
+            impl Drop for Com {
+                fn drop(&mut self) {
+                    unsafe {
+                        CoUninitialize();
+                    }
+                }
+            }
+            let _com = Com;
+            let mut fixture = TestApp::new();
+            let app = &mut fixture.0;
+            let write: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED).unwrap();
+            for text in ["长".repeat(80), "W".repeat(80)] {
+                let layout =
+                    text_layout(&write, &text, &app.config.theme.font, 120.0, 124.0, 40.0).unwrap();
+                let mut metrics = DWRITE_TEXT_METRICS::default();
+                layout.GetMetrics(&mut metrics).unwrap();
+                assert!(
+                    metrics.height <= 40.0 && metrics.width <= 124.0,
+                    "long answer clips in minimum widget"
+                );
+                println!(
+                    "minimum-widget 80-character layout: {:.2} x {:.2} DIPs",
+                    metrics.width, metrics.height
+                );
+            }
+            let bounds = RECT {
+                left: -3840,
+                top: -200,
+                right: 0,
+                bottom: 1960,
+            };
+            let mut run = |index: usize| {
+                app.config.mode = if index.is_multiple_of(2) {
+                    DisplayMode::Fullscreen
+                } else {
+                    DisplayMode::Widget
+                };
+                app.config.theme.art_style = [
+                    blink_verdict::config::ArtStyle::Plain,
+                    blink_verdict::config::ArtStyle::Ink,
+                    blink_verdict::config::ArtStyle::Cyberpunk,
+                    blink_verdict::config::ArtStyle::Graffiti,
+                ][(index / 2) % 4];
+                let text = if index.is_multiple_of(2) { "YES" } else { "NO" };
+                let renderer = Renderer::new(app.overlay, &app.config, text, bounds).unwrap();
+                for effect in [
+                    blink_verdict::config::Animation::None,
+                    blink_verdict::config::Animation::Fade,
+                    blink_verdict::config::Animation::Flash,
+                    blink_verdict::config::Animation::Pop,
+                    blink_verdict::config::Animation::Slide,
+                ] {
+                    for elapsed in [0.0, 0.1, 1.0] {
+                        renderer
+                            .paint(
+                                &app.config,
+                                text,
+                                false,
+                                blink_verdict::animation::sample(effect, elapsed, Some(0.2)),
+                            )
+                            .unwrap();
+                    }
+                }
+            };
+            for index in 0..16 {
+                run(index);
+            }
+            // A valid idle renderer can own zero GDI objects. Hold one known brush
+            // to verify that the counter is available, rather than treating zero as failure.
+            struct Probe(HBRUSH);
+            impl Drop for Probe {
+                fn drop(&mut self) {
+                    unsafe {
+                        let _ = DeleteObject(self.0);
+                    }
+                }
+            }
+            let probe = Probe(CreateSolidBrush(COLORREF(0x123456)));
+            assert!(!probe.0.is_invalid());
+            let process = GetCurrentProcess();
+            let baseline_gdi = GetGuiResources(process, GR_GDIOBJECTS);
+            let baseline_user = GetGuiResources(process, GR_USEROBJECTS);
+            assert!(
+                baseline_gdi > 0 && baseline_user > 0,
+                "GUI counters unavailable"
+            );
+            let started = Instant::now();
+            for index in 0..128 {
+                run(index);
+            }
+            let final_gdi = GetGuiResources(process, GR_GDIOBJECTS);
+            let final_user = GetGuiResources(process, GR_USEROBJECTS);
+            println!(
+                "release surfaces: 128 cycles, 1920 frames, {:.2}s; GDI (including one test brush) {} -> {}, USER {} -> {}",
+                started.elapsed().as_secs_f32(),
+                baseline_gdi,
+                final_gdi,
+                baseline_user,
+                final_user
+            );
+            assert!(
+                final_gdi <= baseline_gdi + 4,
+                "GDI handles grew over repeated render/art cycles"
+            );
+            assert!(
+                final_user <= baseline_user + 2,
+                "USER handles grew over repeated render/art cycles"
             );
         }
     }

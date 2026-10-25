@@ -35,9 +35,10 @@ Run `./scripts/tests/gamebar-order.ps1` on Windows, or dispatch `check.yml` with
 Use the [release preparation workflow](releases/README.md) and create a record from `docs/releases/TEMPLATE.md` with the candidate commit and actual evidence. The workflow is manual and does not expand daily CI. An unchecked box is unverified, not implicitly passed. No stable release before the focus/input and core decision gates pass on Windows.
 
 1. `cargo fmt --all -- --check`, `cargo test --locked --lib`, `cargo build --locked --release` on Windows.
-2. Run all four settings/runtime regressions above (with the built executable configured), then `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all eleven protocol adapters / variants and both input routes, credentials in headers, default service residency and optional Ollama unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
+2. Build release, set `BLINK_VERDICT_TEST_EXE`, and run `cargo test --locked --bin blink-verdict -- --ignored --test-threads=1 --nocapture`. This includes the four focused settings/runtime groups plus renderer/worker lifecycle and setup-confirmation release cases (seven total). Then run `cargo test --locked --test release_providers -- --ignored`. These three grouped tests run on Windows using only a loopback mock server; cover all eleven protocol adapters / variants and both input routes, credentials in headers, default service residency and optional Ollama unloading, HTTP errors, redirect refusal, timeout and invalid model choices.
 3. The release-only workflow additionally checks the real registered shortcut, PNG capture, loopback choice, busy repeat suppression, foreground/keyboard/mouse delivery on a synthetic receiver, and 60-sample hidden-fresh/hidden-after-use/visible-widget metrics. These do not certify games, live services or endurance.
-4. Run the focused Game Bar ordering script above, then the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
+4. The workflow also runs `scripts/release/llama-smoke.ps1`: checksum-verified llama-server b11669 and public stories260K weights, two schema-constrained text requests and missing-key rejection. Artifacts stay in runner temp, never the package. This does not certify model quality, user models or vision/GPU.
+5. Run the focused Game Bar ordering script above, then the manual matrix below, including the optional Game Bar build if distributing it. A real API smoke test requires the maintainer's own credentials; never commit them or use them in screenshots.
 
 ## Windows manual matrix (stored outside daily tests)
 
@@ -70,4 +71,4 @@ Targets, not measured claims: hidden host private working set ≤30 MB and mean 
 
 ## Current validation
 
-See `docs/validation.md` for performed checks. The Linux environment cannot validate Windows compositor, Game Bar, DPI interaction, actual focus/input or game compatibility. Cross-compilation is only a build check.
+See `docs/validation.md` for performed checks. Linux cross-compilation is only a build check. Windows CI adds real desktop compositor/input evidence on its runner, but does not certify physical mixed-DPI/HDR devices, installed Game Bar or real games. Under a no-physical-machine release, passing these gates permits a prerelease with explicit limits; it does not check off the remaining manual matrix.

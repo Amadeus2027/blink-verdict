@@ -20,7 +20,7 @@
 
 API 密钥保存在 Windows 凭据管理器中。程序不默认保存截图或判断历史。
 
-当前为 0.1.0-rc.1 候选版，尚未完成正式版验收。独占全屏游戏可尝试单独安装 Game Bar 组件，兼容性需按游戏确认。
+当前为 0.1.0-rc.2 候选版，尚未完成正式版验收。独占全屏游戏可尝试单独安装 Game Bar 组件，兼容性需按游戏确认。
 
 [完整介绍](https://github.com/Amadeus2027/blink-verdict) · [模型连接](https://github.com/Amadeus2027/blink-verdict/blob/main/docs/models.md) · [游戏显示](https://github.com/Amadeus2027/blink-verdict/blob/main/docs/gamebar.md)
 

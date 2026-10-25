@@ -63,7 +63,7 @@ pub(super) unsafe fn open(app: &mut App) {
     let scale = interface_scale(display::dpi(app.settings_monitor), work);
     let width = (800.0 * scale).round() as i32;
     let height = (860.0 * scale).round() as i32;
-    let onboarding = !app.config_path.exists();
+    let onboarding = !app.configuration_ready;
     // Result fonts stay independent of the interface. Capture-only fonts are never shipped.
     let face = if app.recording_preview {
         app.config.theme.font.as_str()
@@ -553,6 +553,7 @@ unsafe fn save(app: &mut App) -> bool {
     }
     app.hide();
     app.config = config;
+    app.configuration_ready = true;
     app.hotkey_active = !app.paused;
     app.set_status(
         if app.paused {
@@ -1072,6 +1073,34 @@ mod tests {
             assert_eq!(local.model, "blink-local");
             assert!(!local.vision);
             assert!(ui.pending_key.is_none());
+        }
+    }
+    #[test]
+    #[ignore = "release-only: setup cancellation cannot start a default cloud request or persist defaults"]
+    fn release_setup_requires_confirmation() {
+        unsafe {
+            let mut fixture = TestApp::new();
+            let app = &mut fixture.0;
+            app.configuration_ready = false;
+            app.hotkey_active = true;
+            let foreground = GetForegroundWindow();
+            app.trigger();
+            assert!(app.worker.is_none() && !app.busy);
+            assert_eq!(GetForegroundWindow(), foreground);
+            assert!(app.status.contains("完成模型"));
+            app.config.mode = DisplayMode::Widget;
+            app.persist_preferences().unwrap();
+            assert!(!app.config_path.exists());
+            open(app);
+            assert!(app.settings_ui.as_ref().unwrap().onboarding);
+            let _ = DestroyWindow(app.settings); // Cancel setup.
+            app.trigger();
+            assert!(!app.configuration_ready && app.worker.is_none());
+            assert!(!app.config_path.exists());
+            open(app);
+            assert!(save(app));
+            assert!(app.configuration_ready && app.config_path.exists());
+            assert_eq!(Config::load(&app.config_path).unwrap(), app.config);
         }
     }
 }

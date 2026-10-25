@@ -1,6 +1,14 @@
 # Development validation
 
-Updated: 2026-10-24. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
+Updated: 2026-10-25. Current capture/structure optimization evidence is recorded below, followed by the remaining release gates. Earlier UI and typography checks are retained as historical evidence; their media sizes do not describe the current exports. The native Rust host, decision protocols and stored preferences remain compatible.
+
+## RC2 full automated acceptance
+
+[0.1.0-rc.2 record](releases/0.1.0-rc.2.md) and [full Windows run](https://github.com/Amadeus2027/blink-verdict/actions/runs/40161041424) cover candidate `dc00114`: five Windows core tests, seven stored native checks, three release network groups, actual pinned llama-server text/schema/authentication, Game Bar ordering and optional-component compilation, normal-mode desktop input/capture, native UI alpha, resource sampling and package checks. Source review fixed setup cancellation/default-service requests, long-label fitting and bounded Game Bar art reads. Prior RC1 evidence is historical.
+
+Downloaded and verified the exact 971,871-byte ZIP and 1,294,848-byte AMD64 GUI executable, all internal hashes, source texts, lock contents, ASLR/DEP and system-DLL imports. Each 60-sample runner group lasts 77–80 seconds: fresh/after-use hidden mean private working set 1.38/2.21 MiB, visible widget 5.12 MiB. Active parent+task observed combined private commit peaks at 13.20 MiB; this is not private working set or an absolute peak guarantee. Raw values, provenance, audit and limitations are in the record.
+
+Release decision under the user's no-physical-machine constraint: a prerelease candidate is ready for public preview with explicit unverified hardware/game/user-model limits. No stable or universal Windows compatibility certification follows, and the optional Game Bar package is not distributed in the main ZIP.
 
 ## Game Bar delayed-operation follow-up
 

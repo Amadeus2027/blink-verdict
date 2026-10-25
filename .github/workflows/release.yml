@@ -39,7 +39,7 @@ jobs:
           cargo build --locked --release
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $env:BLINK_VERDICT_TEST_EXE = (Resolve-Path target/release/blink-verdict.exe).Path
-          cargo test --locked --bin blink-verdict regression -- --ignored --test-threads=1
+          cargo test --locked --bin blink-verdict -- --ignored --test-threads=1 --nocapture
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cargo test --locked --test release_providers -- --ignored
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -49,6 +49,9 @@ jobs:
       - name: Focused Game Bar operation ordering
         shell: pwsh
         run: ./scripts/tests/gamebar-order.ps1
+      - name: Pinned real llama-server schema and authentication smoke
+        shell: pwsh
+        run: ./scripts/release/llama-smoke.ps1
       - name: Real desktop shortcut, input and resource checks
         shell: pwsh
         run: ./scripts/release/desktop-smoke.ps1
@@ -94,3 +97,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/release/attach_draft.py candidate-download
+
+  optional-gamebar:
+    if: ${{ !inputs.upload_only }}
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Compile optional component, without installation or certification
+        run: msbuild gamebar/BlinkVerdict.GameBar.csproj /restore /p:Configuration=Debug /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true

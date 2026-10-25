@@ -1,0 +1,13 @@
+{
+  "source_commit": "dc00114a166ebba9e17d416dd55fbdb16f03e93e",
+  "model": "ggml-org/models tinyllamas/stories260K.gguf",
+  "limits": "Tiny public text-only test weights; no model quality, user GGUF, vision, GPU or latency certification.",
+  "model_sha256": "270cba1bd5109f42d03350f60406024560464db173c0e387d91f0426d3bd256d",
+  "model_revision": "499bc8821c6b12b4e53c5bffcb21ec206f212d81",
+  "binary_sha256": "37b3efcf962847ca869745fd4ccf7f5e7e8dacfeff9fa3523b4ca8cdc66d632b",
+  "llama_tag": "b11669",
+  "checks": [
+    "two nonstreaming schema-constrained requests through production WinHTTP",
+    "missing API key rejected"
+  ]
+}

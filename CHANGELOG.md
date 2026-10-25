@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.0-rc.2 — Candidate in preparation
+
+- Require completed setup before decision triggers. Cancelled or invalid setup cannot send to default cloud services; mode/layout preferences do not accidentally mark defaults as configured.
+- Bound the actual custom-art read for Game Bar to 32 KiB even if the file changes while loading.
+- Fit long custom answers using measured wrapped layouts, including the smallest widget; remove the fixed 8-DIP floor that could leave labels clipped.
 
 - Prevent a delayed Game Bar hide or old connection cleanup from clearing a newer request. Assign monotonic operation IDs before launching helpers, order UI mutations and discard superseded async work. Require matching v2 host/component protocol before sending a display payload.
 

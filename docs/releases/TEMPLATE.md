@@ -8,7 +8,11 @@
 
 - [ ] Format and native release build
 - [ ] Core tests: five on Windows (four groups plus native PNG)
+- [ ] Seven ignored native settings/runtime/lifecycle/setup checks
 - [ ] Three ignored release network regressions
+- [ ] Real pinned llama-server text/schema/auth smoke
+- [ ] Game Bar operation-order regression
+- [ ] Downloaded ZIP/PE/hash/source/license verification
 - [ ] Optional Game Bar build/package (or explicitly not distributed)
 
 ## Windows acceptance
