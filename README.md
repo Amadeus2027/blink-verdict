@@ -1,22 +1,24 @@
+<p align="center"><strong>简体中文</strong> · <a href="README.en.md">English</a></p>
+
 <p align="center">
   <img src="docs/assets/lockup.png" alt="BlinkVerdict" width="530" />
 </p>
 
 <h3 align="center">给眼前的选择，一个答案。</h3>
 
-<p align="center">为 Windows 打造的快捷键决策助手。<br/>设定目标与选项，按下快捷键，让模型结合当前屏幕给出选择。</p>
+<p align="center">按一下快捷键，让答案轻轻浮现。<br/>结合当前屏幕，从你设定的选项中做出选择。支持本地与云端模型。</p>
 
 <p align="center">
-  <a href="#下载与安装"><strong>下载</strong></a> &nbsp;·&nbsp;
+  <a href="https://github.com/Amadeus2027/blink-verdict/releases/download/v0.1.0-rc.2/blink-verdict-0.1.0-rc.2-windows-x64.zip"><strong>下载 Windows 版</strong></a> &nbsp;·&nbsp;
   <a href="#三步开始"><strong>开始使用</strong></a> &nbsp;·&nbsp;
   <a href="docs/showcase.md"><strong>产品演示</strong></a> &nbsp;·&nbsp;
   <a href="docs/models.md"><strong>模型配置</strong></a> &nbsp;·&nbsp;
   <a href="#隐私与数据"><strong>隐私</strong></a>
 </p>
 
-<p align="center"><sub>Windows x64 · 本地与云端模型 · 原生 Rust · <a href="LICENSE">MIT</a></sub></p>
+<p align="center"><sub>Windows 10 / 11 · x64 · v0.1.0-rc.2 预览版 · <a href="LICENSE">MIT</a></sub></p>
 
-<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="全屏文字、常驻浮窗、字效与模型配置的完整演示" width="560" /></a><br/><sub>39 秒原画短片与全部章节见 <a href="docs/showcase.md">产品演示</a>。GIF 约 1 MB。</sub></p>
+<p align="center"><a href="docs/showcase.md"><img src="docs/assets/showcase.gif" alt="全屏文字、常驻浮窗、字效与模型配置的完整演示" width="560" /></a><br/><sub><a href="docs/assets/showcase.mp4">观看 39 秒完整短片</a> · GIF 约 1 MB。演示中的答案为外观预览。</sub></p>
 
 ## 在需要做选择时，按一下
 
@@ -32,24 +34,16 @@
 
 ## 下载与安装
 
-**[查看发行包](https://github.com/Amadeus2027/blink-verdict/releases)** · [更新记录](CHANGELOG.md) · [版本验收状态](docs/releases/0.1.0-rc.2.md)
+**[下载 Windows x64 · ZIP](https://github.com/Amadeus2027/blink-verdict/releases/download/v0.1.0-rc.2/blink-verdict-0.1.0-rc.2-windows-x64.zip)** · [发行说明与校验文件](https://github.com/Amadeus2027/blink-verdict/releases/tag/v0.1.0-rc.2) · [更新记录](CHANGELOG.md)
 
-**0.1.0-rc.2 预览候选**已完成自动发行验收。公开附件以 Releases 为准；若尚未公开，可从[候选构建任务](https://github.com/Amadeus2027/blink-verdict/actions/runs/40161041424)获取 `release-candidate-windows-x64`（需登录 GitHub，附件有保留期限）。[查看验收范围与校验和](docs/releases/0.1.0-rc.2.md)。旧 RC1 继续暂停发布。
+当前版本 **v0.1.0-rc.2** 已公开发布，属于预览版。解压后运行 `blink-verdict.exe`，无需安装或管理员权限。已完成 Windows CI 自动验收；消费版 Windows 实机、游戏和多显示器兼容性仍待验证。[查看验收记录](docs/releases/0.1.0-rc.2.md)。
 
 | 项目 | 说明 |
 |---|---|
 | 系统目标 | Windows 10 22H2 / Windows 11，x64；消费版兼容性验收进度见下方说明 |
-| 运行方式 | 解压 ZIP，运行 `blink-verdict.exe`；无需安装或管理员权限 |
 | 模型要求 | 可用的 API 账号，或已在本机运行的兼容服务；程序不附带模型权重 |
 | 下载校验 | 使用同一发行页的 `SHA256SUMS.txt` 核对 ZIP；包内附来源与文件清单 |
 | 代码签名 | 当前未做 Authenticode 签名，Windows 可能显示未知发布者 |
-
-<details>
-<summary>尚无公开发行包时，获取开发构建</summary>
-
-打开 [成功的主分支构建](https://github.com/Amadeus2027/blink-verdict/actions/workflows/check.yml?query=branch%3Amain+is%3Asuccess)，选择 `blink-verdict-windows-x64-preview` 附件，解开附件后再解压其中的程序 ZIP。构建附件需要登录 GitHub，且可能过期；它不是稳定发行版。
-
-</details>
 
 ## 三步开始
 
@@ -98,7 +92,7 @@
 
 采用原生 Rust 与 Windows 接口，不附带浏览器运行时或本地推理引擎。仅在触发决策时读取屏幕、执行 OCR 或请求模型；显示结束后停止动画刷新。判断任务在按需启动的短生命周期进程中执行，超时会回收任务并恢复按键；平时不保留工作进程。
 
-本次 x64 候选 ZIP 约 **0.97 MB**，主程序约 **1.29 MB**。在 Windows runner 的每组 60 次采样中，使用后待命的平均私有工作集约 **2.21 MiB**，浮窗约 **5.12 MiB**。这是该环境的观测值，不是所有设备的占用承诺；任务进程的活动开销及本地模型资源另计。[查看完整条件与活动采样 →](docs/releases/0.1.0-rc.2.md)
+当前 x64 发行 ZIP 约 **0.97 MB**，主程序约 **1.29 MB**。在 Windows runner 的每组 60 次采样中，使用后待命的平均私有工作集约 **2.21 MiB**，浮窗约 **5.12 MiB**。这是该环境的观测值，不是所有设备的占用承诺；任务进程的活动开销及本地模型资源另计。[查看完整条件与活动采样 →](docs/releases/0.1.0-rc.2.md)
 
 ## 隐私与数据
 
@@ -107,11 +101,11 @@
 - 云端模型会收到本次截图或 OCR 文字、目标与选项；本地模式发送给你配置的本机服务。服务方如何留存数据取决于其政策。
 - API 密钥保存在 Windows 凭据管理器；普通设置文件不含密钥。
 
-## 兼容性与当前边界
+## 游戏与显示兼容性
 
-桌面浮层按不激活窗口、点击穿透的方式显示。**目前没有已认证兼容的游戏**；独占全屏、反作弊与受保护画面均可能限制捕获或显示。建议先在无边框模式验证。[Game Bar 组件](docs/gamebar.md)属于单独安装的实验组件，不包含在主程序候选包中。
+桌面浮层按不激活窗口、点击穿透的方式显示。**目前没有已认证兼容的游戏**；独占全屏、反作弊与受保护画面均可能限制捕获或显示。建议先在无边框模式验证。[Game Bar 组件](docs/gamebar.md)属于单独安装的实验组件，不包含在主程序发行包中。
 
-[兼容记录](docs/compatibility.md) · [当前候选版验收](docs/releases/0.1.0-rc.2.md)
+[兼容记录](docs/compatibility.md) · [当前版本验收](docs/releases/0.1.0-rc.2.md)
 
 ## 常见问题
 
@@ -141,4 +135,4 @@ cargo build --locked --release
 
 </details>
 
-本项目采用 [MIT 许可证](LICENSE)。第三方依赖保留各自许可，候选包包含相应声明。BlinkVerdict 不隶属于所连接的模型厂商。
+本项目采用 [MIT 许可证](LICENSE)。第三方依赖保留各自许可，发行包包含相应声明。BlinkVerdict 不隶属于所连接的模型厂商。
